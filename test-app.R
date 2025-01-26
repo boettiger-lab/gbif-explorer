@@ -31,7 +31,7 @@ chat <- ellmer::chat_vllm(
 # or use the NRP model
 chat <- ellmer::chat_vllm(
   base_url = "https://llm.nrp-nautilus.io/",
-  model = "llama3",
+  model = "olmo",
   api_key = Sys.getenv("NRP_API_KEY"),
   system_prompt = system_prompt,
   api_args = list(temperature = 0)
