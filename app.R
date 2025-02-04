@@ -166,6 +166,9 @@ observeEvent(input$get_features, {
     Always use table notation like 'gbif.order' to specify column names.
     Be sure to generate fully valid SQL. Check your SQL for possible errors.
 
+    Do not use the 'scientificname' column! Instead, filter specific species using the
+    binomial name as the 'species' column.
+
     Always use the table 'gbif_aoi' rather than 'gbif' table if both are present.
 
     IMPORTANT: return raw JSON only, do not decorate your reply with markdown code syntax.
@@ -219,7 +222,11 @@ observeEvent(input$get_features, {
       cached_data <- open_dataset(cache_parquet)
 
       # so we can scale color and height to max value
-      biggest <- cached_data |> summarise(max = max(log_count)) |> pull(max) |> first()
+      biggest <-
+        cached_data |> 
+        summarise(max = max(log_count)) |>
+        pull(max) |>
+        first()
 
       # so we can zoom to the selected data (choose random point)
       aoi_info <- cached_data |>
@@ -233,6 +240,9 @@ observeEvent(input$get_features, {
       # draw on map
       h3j <- glue("s3://public-data/cache/{query_id}.h3j")
       cached_data |> to_h3j(h3j)
+
+      # adjust v-scale based on zoom:
+      vscale <- 7000 / aoi_info$zoom
 
       # override previous map with drawn map
       # we should use set_h3j_source and set_layer on maplibre_proxy instead.
@@ -254,7 +264,7 @@ observeEvent(input$get_features, {
               list("linear"),
               list("zoom"),
               0, 0, biggest,
-              list("*", 10000, list("get", "log_count"))
+              list("*", vscale, list("get", "log_count"))
             ),
             fill_extrusion_opacity = 0.7
           )
