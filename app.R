@@ -14,7 +14,12 @@ library(digest)
 library(stringr)
 library(shinybusy)
 
+# initialize a disk-backed database for the session
 duckdbfs::close_connection()
+duckdbfs::cached_connection(tempfile())
+
+duckdbfs::load_h3()
+duckdbfs::load_spatial()
 
 css <-
   HTML(paste0("<link rel='stylesheet' type='text/css' ",
@@ -30,10 +35,11 @@ ui <- page_sidebar(
   titlePanel("Demo App"),
   shinybusy::add_busy_spinner(),
   
-  p("
-  Select a desired area with the draw tools on the map, then hit 'Set Area of Interest' to select.
+  markdown("
+  Select a desired area with the draw tools on the map, using the search bar if desired. 
+  Then hit **Set Area of Interest** to select.
   Then, enter your query in the text box below the map to count occurrences of your specified taxonomic group.
-  Use the airplane button to sned your query.  The computation may take a few minutes depending on the size and scale of
+  Use the airplane button to send your query.  The computation may take a few minutes depending on the size and scale of
   the search.
 "),
 
@@ -91,7 +97,7 @@ Scroll to zoom, ctrl+click to pitch and rotate. Hitting the area button with no 
           verbatimTextOutput("sql_code")
         ),
         accordion_panel(
-          title = "Explain query",
+          title = HTML("<span, class='text-info'>Explain query</span>"),
           icon = fa("user", prefer_type = "solid"),
           textOutput("explanation")
         )
@@ -114,19 +120,19 @@ duckdb_secrets(Sys.getenv("MINIO_KEY"),
             "minio.carlboettiger.info")
 
 gbif <- open_dataset("s3://public-gbif/2024-10-01",  tblname = "gbif")
-bounds <- ""
 
 # Define the server
 server <- function(input, output, session) {
   output$map <- renderMaplibre({
-    m <- maplibre(center=c(-110, 38), zoom = 3, pitch = 0) |>
+    m <- maplibre(center = c(-110, 38), zoom = 2, pitch = 0, maxZoom=9) |>
       add_draw_control() |>
-      add_geocoder_control() #|> 
-      # set_projection("globe")
+      add_geocoder_control()
     
     m
   })
 observeEvent(input$get_features, {
+      bounds <- ""
+      aoi_info <- NULL
 
       drawn_features <- get_drawn_features(mapboxgl_proxy("map"))
       if(nrow(drawn_features) > 0) {
@@ -139,7 +145,7 @@ observeEvent(input$get_features, {
 
 
         attach(as.list(bounds))
-        gbif_aoi <- gbif |>
+        gbif |>
           dplyr::filter(between(decimallatitude, ymin, ymax),
                       between(decimallongitude, xmin, xmax)) |>
           as_view("gbif_aoi")
@@ -195,27 +201,43 @@ observeEvent(input$get_features, {
       # cache the query
       query_id <- digest::digest(paste(response$query, bounds, collapse=""))
       data_url <- glue::glue("https://minio.carlboettiger.info/public-data/cache/{query_id}.h3j")
-      output$url <- renderText(data_url)
       
-      cache_parquet <- glue("{query_id}.parquet")
+      # use tempfile.  we could use database tempdir
+      cache_parquet <- tempfile(glue("{query_id}"), fileext = ".parquet")
 
       # compute if not yet in chache
       status <- httr::status_code(httr::HEAD(data_url))
       if(status == 404) {
         print("Computing...")
         time <- bench::bench_time({
-          agent_query(stream) |> write_dataset(cache_parquet)
+          agent_query(stream) |>
+          mutate(log_count = log(count)) |>
+          write_dataset(cache_parquet)
         })
         print(time)
       }
+      cached_data <- open_dataset(cache_parquet)
+
+      # so we can scale color and height to max value
+      biggest <- cached_data |> summarise(max = max(log_count)) |> pull(max) |> first()
+
+      # so we can zoom to the selected data (choose random point)
+      aoi_info <- cached_data |>
+        head(1) |> 
+        mutate(zoom = h3_get_resolution(h3id),
+               lat = h3_cell_to_lat(h3id),
+               lng = h3_cell_to_lng(h3id)) |>
+        collect()
+                  
 
       # draw on map
       h3j <- glue("s3://public-data/cache/{query_id}.h3j")
-      open_dataset(cache_parquet) |> to_h3j(h3j)
+      cached_data |> to_h3j(h3j)
 
       # override previous map with drawn map
+      # we should use set_h3j_source and set_layer on maplibre_proxy instead.
       output$map <- renderMaplibre({
-          m <- maplibre(center=c(-110, 38), zoom = 3, pitch = 0, maxZoom = 9) |>
+          m <- maplibre(center=c(-110, 38), zoom = 1, pitch = 0, maxZoom = 11) |>
           add_h3j_source("h3j_source",
                         url = data_url) |>
           add_fill_extrusion_layer(
@@ -223,19 +245,24 @@ observeEvent(input$get_features, {
             source = "h3j_source",
             tooltip = "count",
             fill_extrusion_color = interpolate(
-              column = "count",
-              values = c(0, 1000),
+              column = "log_count",
+              values = c(0, biggest),
               stops = c("#430254", "#f83c70")
             ),
             fill_extrusion_height = list(
               "interpolate",
               list("linear"),
               list("zoom"),
-              0, 0, 1000,
-              list("*", 10, list("get", "count"))
+              0, 0, biggest,
+              list("*", 10000, list("get", "log_count"))
             ),
             fill_extrusion_opacity = 0.7
           )
+        if (!is.null(aoi_info)) {
+          m <- m |> fly_to(c(aoi_info$lng, aoi_info$lat), zoom = (aoi_info$zoom - 1))
+        }
+
+        m
       }) # close renderMaplibre
     }) # close observeEvent->get_features
   }) # close observeEvent->user_msg
