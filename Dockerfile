@@ -11,9 +11,10 @@ RUN install2.r --error \
     markdown \
     shiny \
     shinychat \
-    tidyverse
+    tidyverse \
+    shinybusy
 
-RUN installGithub.r cboettig/mapgl tidyverse/ellmer
+RUN installGithub.r cboettig/mapgl tidyverse/ellmer boettiger-lab/duckdb.agent
 
 COPY . .
 
