@@ -14,7 +14,7 @@ RUN install2.r --error \
     tidyverse \
     shinybusy
 
-RUN installGithub.r cboettig/mapgl tidyverse/ellmer boettiger-lab/duckdb.agent
+RUN installGithub.r cboettig/mapgl tidyverse/ellmer boettiger-lab/duckdb.agent cboettig/duckdbfs
 
 COPY . .
 
