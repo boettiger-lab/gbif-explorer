@@ -3,6 +3,7 @@ FROM rocker/geospatial:latest
 WORKDIR /code
 
 RUN install2.r --error \
+    bench \
     bsicons \
     bslib \
     duckdbfs \
@@ -10,9 +11,9 @@ RUN install2.r --error \
     gt \
     markdown \
     shiny \
+    shinybusy \
     shinychat \
-    tidyverse \
-    shinybusy
+    tidyverse
 
 RUN installGithub.r cboettig/mapgl tidyverse/ellmer boettiger-lab/duckdb.agent cboettig/duckdbfs
 
