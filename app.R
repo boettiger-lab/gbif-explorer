@@ -3,6 +3,7 @@ library(bslib)
 library(htmltools)
 library(fontawesome)
 library(bsicons)
+library(bench)
 library(glue)
 library(sf)
 library(duckdb.agent)
@@ -14,11 +15,8 @@ library(digest)
 library(stringr)
 library(shinybusy)
 
-# initialize a disk-backed database for the session
-duckdbfs::close_connection()
-duckdbfs::cached_connection(tempfile())
+source("utils.R")
 
-duckdbfs::load_h3()
 duckdbfs::load_spatial()
 
 css <-
@@ -117,63 +115,9 @@ duckdb_secrets(Sys.getenv("MINIO_KEY"),
             "minio.carlboettiger.info")
 
 
-get_h3index <- function(shape, zoom = 0L, precision = 6L) {
-
-  tmp <- tempfile(fileext = ".fgb")
-  shape |> st_transform(4326) |> write_sf(tmp, append = FALSE)
-  zoom <- as.integer(zoom)
-
-  # consider auto-retry at higher precision if subset is empty.
-  precision <- as.integer(precision)
-  subset <- open_dataset(tmp) |>
-    mutate(poly = array_extract(unnest(st_dump(geom)),"geom"),
-          hexid = h3_polygon_wkt_to_cells(poly,{precision}),
-          hexid = unnest(hexid)
-          ) |>
-    mutate(h0 = h3_h3_to_string( h3_cell_to_parent(hexid, {zoom})),
-          hexid = h3_h3_to_string (hexid) ) |>
-    select(h0) |>
-    distinct() |>
-    pull(h0)
-
-  toupper(subset)
-}
-
-# Define the server
-server <- function(input, output, session) {
-  output$map <- renderMaplibre({
-    m <- maplibre(center = c(-110, 38), zoom = 2, pitch = 0, maxZoom = 12) |>
-      add_draw_control() |>
-      add_geocoder_control()
-
-    m
-  })
-observeEvent(input$get_features, {
-    bounds <- ""
-    aoi_info <- NULL
-
-    drawn_features <- get_drawn_features(mapboxgl_proxy("map"))
-    if(nrow(drawn_features) > 0) {
-
-      bounds <- st_bbox(drawn_features)
-      output$feature_output <- renderPrint(print(bounds))
-
-      attach(as.list(bounds))
-
-      subset <- get_h3index(drawn_features)
-      urls <- paste0("https://minio.carlboettiger.info/public-gbif/hex/h0=", subset, "/part0.parquet")
-      gbif <- open_dataset(urls, tblname = "gbif")
-
-      gbif |>
-        dplyr::filter(between(decimallatitude, ymin, ymax),
-                    between(decimallongitude, xmin, xmax)) |>
-        as_view("gbif_aoi")
-
-      }
-
-  observeEvent(input$user_msg, {
 
 
+    # system prompt generation is slow, do only once??
 
     system_prompt = create_prompt(additional_instructions =
     "Note that the columns h1, h2, h3, through h11 contains a geohash representing a H3 hexagon index.
@@ -181,19 +125,86 @@ observeEvent(input$get_features, {
     Always aggregate results to count the number of rows matching
     the query to the desired hexagon. Always name the count column 'count'.
     Remember to group by hexagon level to aggregate! 
+
     Always rename the chosen hexagon column as 'h3id' in your final answer.
-    Always use table notation like 'gbif.order' to specify column names.
+    Only select the h3id and count in your final answer. 
+
+    Examples: 
+  user: 'show all bird occurrences at zoom level 6'
+
+  your reply: 
+
+    {
+    'query': 'CREATE OR REPLACE VIEW bird_occurrences_h6 AS SELECT gbif.h6 AS h3id, COUNT(*) AS count FROM gbif WHERE gbif.class = 'Aves' GROUP BY gbif.h6',
+    'table_name': 'bird_occurrences_h6',
+    'explanation': 'This query creates a view that shows the count of bird occurrences at zoom level 6. It selects the h6 column as the hexagon id, counts the number of rows for each hexagon, and groups the results by the h6 column.'
+    }
+
+    Refer to the full table by its table name as given above.
+    Be sure to list column names 
     Be sure to generate fully valid SQL. Check your SQL for possible errors.
+    
 
     Do not use the 'scientificname' column! Instead, filter specific species using the
     binomial name as the 'species' column.
 
-    Always use the table 'gbif_aoi' rather than 'gbif' table if both are present.
-
     IMPORTANT: return raw JSON only, do not decorate your reply with markdown code syntax.
     ")
 
+
+
+
+
+# Define the server
+server <- function(input, output, session) {
+
+  # first we draw the map with geosearch and draw controls.
+  output$map <- renderMaplibre({
+    m <- maplibre(center = c(-110, 38), zoom = 2, pitch = 0, maxZoom = 12) |>
+      add_draw_control() |>
+      add_geocoder_control()
+
+    m
+  })
+
+  # React to user's polygon
+  observeEvent(input$get_features, {
+    bounds <- ""
+    aoi_info <- NULL
+
+    drawn_features <- get_drawn_features(mapboxgl_proxy("map"))
+    if(nrow(drawn_features) > 0) {
+
+      aoi <- as_dataset.sf(drawn_features)
+      h3_aoi <- get_h3_aoi(aoi)
+      subset <- h3_aoi |> distinct(h0) |> pull(h0)
+
+
+      print(h3_aoi)
+
+      urls <- paste0("https://minio.carlboettiger.info/public-gbif/hex/h0=", subset, "/part0.parquet")
+      gbif <- open_dataset(urls, tblname = "gbif")
+      # would be better to spatial join
+      bounds <- st_bbox(drawn_features)
+
+   #   timer <- bench::bench_time({
+   #   xmin <- bounds[1]; ymin <- bounds[2]; xmax <- bounds[3]; ymax <- bounds[4]
+   #   open_dataset(urls, tblname = "gbif") |> 
+   #     #filter(between(decimallongitude, xmin, xmax), between(decimallatitude, ymin, ymax)) |> 
+   #     mutate(geom = st_geomfromwkb(geom)) |> spatial_join(aoi) |>
+   #     as_view("gbif_aoi")
+   #   })
+   #   print(timer)
+
+      output$feature_output <- renderPrint(print(bounds))
+    }
+
+
+
+  observeEvent(input$user_msg, {
+
     model <- reactive(input$select)()
+
     if (grepl("cirrus", model)) {
       agent <- ellmer::chat_vllm(
         base_url = "https://llm.cirrus.carlboettiger.info/v1/",
@@ -203,7 +214,7 @@ observeEvent(input$get_features, {
         api_args = list(temperature = 0)
       )
     } else {
-      agent <- ellmer::chat_vllm(
+      agent <- ellmer::chat_vllm( # NRP models have too small a context window for useful interaction
         base_url = "https://llm.nrp-nautilus.io/",
         model = model,
         api_key = Sys.getenv("NRP_API_KEY"),
@@ -211,6 +222,7 @@ observeEvent(input$get_features, {
         api_args = list(temperature = 0)
       )
     }
+
 
     print("Agent thinking...")
     stream <- agent$chat(input$chat)
@@ -229,20 +241,23 @@ observeEvent(input$get_features, {
       output$agent <- renderText(response$agent)
     }
 
-    
       # cache the query
       query_id <- digest::digest(paste(response$query, bounds, collapse=""))
       data_url <- glue::glue("https://minio.carlboettiger.info/public-data/cache/{query_id}.h3j")
       
-      # use tempfile.  we could use database tempdir
+      # use tempfile as cache.  we could use database tempdir
       cache_parquet <- tempfile(glue("{query_id}"), fileext = ".parquet")
 
-      # compute if not yet in chache
+
+
+
+      # compute if not yet in cache
       status <- httr::status_code(httr::HEAD(data_url))
       if(status == 404) {
         print("Computing...")
         time <- bench::bench_time({
           agent_query(stream) |>
+          hex_join(h3_aoi) |>
           mutate(log_count = log(count)) |>
           write_dataset(cache_parquet)
         })
