@@ -82,10 +82,7 @@ Scroll to zoom, ctrl+click to pitch and rotate. Hitting the area button with no 
     selectInput(
     "select",
     "Select an LLM:", 
-    list("LLama3" = "llama3",
-         #"OLMO2 (AllenAI)" = "olmo",
-         "Gorilla (UC Berkeley)" = "gorilla" 
-        )
+    list("Llama3.3-cirrus" = "Llama3.3-cirrus")
   ),
     card(fill = TRUE,
       card_header(fa("robot"),  textOutput("model", inline = TRUE)),
@@ -145,35 +142,32 @@ get_h3index <- function(shape, zoom = 0L, precision = 6L) {
 # Define the server
 server <- function(input, output, session) {
   output$map <- renderMaplibre({
-    m <- maplibre(center = c(-110, 38), zoom = 2, pitch = 0, maxZoom=9) |>
+    m <- maplibre(center = c(-110, 38), zoom = 2, pitch = 0, maxZoom = 12) |>
       add_draw_control() |>
       add_geocoder_control()
-    
+
     m
   })
 observeEvent(input$get_features, {
-      bounds <- ""
-      aoi_info <- NULL
+    bounds <- ""
+    aoi_info <- NULL
 
-      drawn_features <- get_drawn_features(mapboxgl_proxy("map"))
-      if(nrow(drawn_features) > 0) {
-        bounds <- st_bbox(drawn_features)
+    drawn_features <- get_drawn_features(mapboxgl_proxy("map"))
+    if(nrow(drawn_features) > 0) {
 
-        # print(bounds)
-        output$feature_output <- renderPrint({
-            print(bounds)
-        })
+      bounds <- st_bbox(drawn_features)
+      output$feature_output <- renderPrint(print(bounds))
 
-        attach(as.list(bounds))
+      attach(as.list(bounds))
 
-        subset <- get_h3index(drawn_features)
-        urls <- paste0("https://minio.carlboettiger.info/public-gbif/hex/h0=", subset, "/part0.parquet")
-        gbif <- open_dataset(urls, tblname = "gbif")
+      subset <- get_h3index(drawn_features)
+      urls <- paste0("https://minio.carlboettiger.info/public-gbif/hex/h0=", subset, "/part0.parquet")
+      gbif <- open_dataset(urls, tblname = "gbif")
 
-        gbif |>
-          dplyr::filter(between(decimallatitude, ymin, ymax),
-                      between(decimallongitude, xmin, xmax)) |>
-          as_view("gbif_aoi")
+      gbif |>
+        dplyr::filter(between(decimallatitude, ymin, ymax),
+                    between(decimallongitude, xmin, xmax)) |>
+        as_view("gbif_aoi")
 
       }
 
@@ -199,14 +193,24 @@ observeEvent(input$get_features, {
     IMPORTANT: return raw JSON only, do not decorate your reply with markdown code syntax.
     ")
 
-    agent <- ellmer::chat_vllm(
-      base_url = "https://llm.cirrus.carlboettiger.info/v1/",
-      model = "kosbu/Llama-3.3-70B-Instruct-AWQ",
-      api_key = Sys.getenv("CIRRUS_LLM_KEY"),
-      system_prompt = system_prompt,
-      api_args = list(temperature = 0)
-    )
-
+    model <- reactive(input$select)()
+    if (grepl("cirrus", model)) {
+      agent <- ellmer::chat_vllm(
+        base_url = "https://llm.cirrus.carlboettiger.info/v1/",
+        model = "kosbu/Llama-3.3-70B-Instruct-AWQ",
+        api_key = Sys.getenv("CIRRUS_LLM_KEY"),
+        system_prompt = system_prompt,
+        api_args = list(temperature = 0)
+      )
+    } else {
+      agent <- ellmer::chat_vllm(
+        base_url = "https://llm.nrp-nautilus.io/",
+        model = model,
+        api_key = Sys.getenv("NRP_API_KEY"),
+        system_prompt = system_prompt,
+        api_args = list(temperature = 0)
+      )
+    }
 
     print("Agent thinking...")
     stream <- agent$chat(input$chat)
@@ -272,7 +276,7 @@ observeEvent(input$get_features, {
       # override previous map with drawn map
       # we should use set_h3j_source and set_layer on maplibre_proxy instead.
       output$map <- renderMaplibre({
-          m <- maplibre(center=c(-110, 38), zoom = 1, pitch = 0, maxZoom = 11) |>
+          m <- maplibre(center=c(-110, 38), zoom = 1, pitch = 0, maxZoom = 12) |>
           add_h3j_source("h3j_source",
                         url = data_url) |>
           add_fill_extrusion_layer(
