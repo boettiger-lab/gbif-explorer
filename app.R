@@ -119,7 +119,28 @@ duckdb_secrets(Sys.getenv("MINIO_KEY"),
             Sys.getenv("MINIO_SECRET"),
             "minio.carlboettiger.info")
 
-gbif <- open_dataset("s3://public-gbif/2024-10-01",  tblname = "gbif")
+
+get_h3index <- function(shape, zoom = 0L, precision = 6L) {
+
+  tmp <- tempfile(fileext = ".fgb")
+  shape |> st_transform(4326) |> write_sf(tmp, append = FALSE)
+  zoom <- as.integer(zoom)
+
+  # consider auto-retry at higher precision if subset is empty.
+  precision <- as.integer(precision)
+  subset <- open_dataset(tmp) |>
+    mutate(poly = array_extract(unnest(st_dump(geom)),"geom"),
+          hexid = h3_polygon_wkt_to_cells(poly,{precision}),
+          hexid = unnest(hexid)
+          ) |>
+    mutate(h0 = h3_h3_to_string( h3_cell_to_parent(hexid, {zoom})),
+          hexid = h3_h3_to_string (hexid) ) |>
+    select(h0) |>
+    distinct() |>
+    pull(h0)
+
+  toupper(subset)
+}
 
 # Define the server
 server <- function(input, output, session) {
@@ -143,8 +164,12 @@ observeEvent(input$get_features, {
             print(bounds)
         })
 
-
         attach(as.list(bounds))
+
+        subset <- get_h3index(drawn_features)
+        urls <- paste0("https://minio.carlboettiger.info/public-gbif/hex/h0=", subset, "/part0.parquet")
+        gbif <- open_dataset(urls, tblname = "gbif")
+
         gbif |>
           dplyr::filter(between(decimallatitude, ymin, ymax),
                       between(decimallongitude, xmin, xmax)) |>
