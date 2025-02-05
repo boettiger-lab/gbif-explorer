@@ -46,7 +46,7 @@ Scroll to zoom, ctrl+click to pitch and rotate. Hitting the area button with no 
 "),
 
   layout_columns(
-    card(maplibreOutput("map")),
+    card(maplibreOutput("map", , height = "600px")),
     div(actionButton("get_features", "Set Area Of Interest", icon = icon("object-group"),
                    class = "btn-primary align-bottom")),
     col_widths = c(11,1)
@@ -150,7 +150,6 @@ duckdb_secrets(Sys.getenv("MINIO_KEY"),
 
     IMPORTANT: return raw JSON only, do not decorate your reply with markdown code syntax.
     ")
-
 
 
 
@@ -286,7 +285,7 @@ server <- function(input, output, session) {
       cached_data |> to_h3j(h3j)
 
       # adjust v-scale based on zoom:
-      vscale <- 7000 / aoi_info$zoom
+      vscale <- 10000 / aoi_info$zoom
 
       # override previous map with drawn map
       # we should use set_h3j_source and set_layer on maplibre_proxy instead.
