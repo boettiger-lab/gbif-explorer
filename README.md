@@ -10,7 +10,7 @@ license: bsd-2-clause
 
 # Demo Shiny App with Maplibre + open LLM interface
 
-:rocket: Accelerated App on <https://shiny.carlboettiger.info/>
+:rocket: Accelerated App on <https://shiny.carlboettiger.info/>  
 :hugs: Shiny App on Huggingface: <https://huggingface.co/spaces/boettiger-lab/biodiversity>
 
 Work in progress.  This is a proof-of-principle for an LLM-driven interface to dynamic mapping. Key technologies include duckdb, geoparquet, pmtiles, maplibre, open LLMs (via VLLM + LiteLLM).  R interface through ellmer (LLMs), mapgl (maplibre), shiny, and duckdb.
