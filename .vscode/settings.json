@@ -1,0 +1,15 @@
+{
+  "editor.tabSize": 2,
+  "editor.insertSpaces": true,
+  "editor.detectIndentation": false,
+  "[r]": {
+    "editor.tabSize": 2,
+    "editor.insertSpaces": true
+  },
+  "r.lsp.diagnostics": true,
+  "r.lsp.lint": {
+    "linters": [
+      "air"
+    ]
+  }
+}

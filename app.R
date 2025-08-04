@@ -1,325 +1,225 @@
 library(shiny)
 library(bslib)
-library(htmltools)
-library(fontawesome)
-library(bsicons)
-library(bench)
-library(glue)
-library(sf)
-library(duckdb.agent)
-library(duckdbfs)
-library(dplyr)
-library(ellmer)
 library(mapgl)
-library(digest)
-library(stringr)
-library(shinybusy)
-
-source("utils.R")
-
-duckdbfs::load_spatial()
-
-css <-
-  HTML(paste0("<link rel='stylesheet' type='text/css' ",
-              "href='https://demos.creative-tim.com/",
-              "material-dashboard/assets/css/",
-              "material-dashboard.min.css?v=3.2.0'>"))
+library(sf)
+library(dplyr)
+library(duckdbfs)
+library(colourpicker)
+library(overture)
+source("data-layers.R")
 
 
-# Define the UI
 ui <- page_sidebar(
-  fillable = FALSE, # do not squeeze to vertical screen space
-  tags$head(css),
-  titlePanel("Demo App"),
-  shinybusy::add_busy_spinner(),
-  
-  markdown("
-  Select a desired area with the draw tools on the map, using the search bar if desired. 
-  Then hit **Set Area of Interest** to select.
-  Then, enter your query in the text box below the map to count occurrences of your specified taxonomic group.
-  Use the airplane button to send your query.  The computation may take a few minutes depending on the size and scale of
-  the search.
-"),
-
-p("
-Scroll to zoom, ctrl+click to pitch and rotate. Hitting the area button with no selection to include the entire map.
-"),
-
-  layout_columns(
-    card(maplibreOutput("map", , height = "600px")),
-    div(actionButton("get_features", "Set Area Of Interest", icon = icon("object-group"),
-                   class = "btn-primary align-bottom")),
-    col_widths = c(11,1)
-    ),
-
-
-  card(
-    layout_columns(
-      textInput("chat",
-        label = NULL,
-        "show all bird occurrences at zoom level 6",
-        width = "100%"),
-
-      div(
-      actionButton("user_msg", "", icon = icon("paper-plane"),
-                   class = "btn-primary btn-sm align-bottom"),
-      class = "align-text-bottom"),
-      col_widths = c(11, 1),
-      fill = FALSE
-    ),
-  ),
-  
-  textOutput("agent"),
+  title = "Interactive feature selection",
+  # Add custom CSS for smaller font size
 
   sidebar = sidebar(
-    card(fill = TRUE,
-    card_header("Selected area:"),
-    verbatimTextOutput("feature_output")
+    card(
+      card_header("Layers"),
+      input_switch("show_countries", "Countries", value = TRUE),
+      input_switch("show_states", "States", value = FALSE),
+      input_switch("show_counties", "Counties", value = FALSE),
     ),
+    hr(),
+    br(),
 
-    selectInput(
-    "select",
-    "Select an LLM:", 
-    list("Llama3.3-cirrus" = "Llama3.3-cirrus")
-  ),
-    card(fill = TRUE,
-      card_header(fa("robot"),  textOutput("model", inline = TRUE)),
-      accordion(
-        open = TRUE,
-        accordion_panel(
-          HTML("<span, class='text-info'>Show SQL query</span>"),
-          icon = fa("terminal"),
-          verbatimTextOutput("sql_code")
+    accordion(
+      accordion_panel(
+        "Controls",
+        actionButton("get_features", "Get drawing"),
+        actionButton("visible_features", "Get current features"),
+        actionButton("current_bbox", "Get bbox"),
+        sliderInput(
+          "max_zoom",
+          "Max Zoom Level",
+          min = 1,
+          max = 15,
+          value = 6,
+          step = 1
         ),
-        accordion_panel(
-          title = HTML("<span, class='text-info'>Explain query</span>"),
-          icon = fa("user", prefer_type = "solid"),
-          textOutput("explanation")
-        )
+
+        colourInput("color", "Select a color", value = "blue"),
+
+        open = FALSE
       )
     ),
-   
-   
-    card(
-      card_header(bs_icon("github"), "Source code:"),
-      a(href = "https://github.com/boettiger-lab/biodiversity-justice",
-        "https://github.com/boettiger-lab/biodiversity-justice"))
   ),
-
-  theme = bs_theme(version = "5")
+  card(
+    full_screen = TRUE,
+    maplibreOutput("map")
+  ),
+  includeMarkdown(
+    "
+  "
+  ),
 )
 
 
-duckdb_secrets(Sys.getenv("MINIO_KEY"),
-            Sys.getenv("MINIO_SECRET"),
-            "minio.carlboettiger.info")
-
-
-
-
-    # system prompt generation is slow, do only once??
-
-    system_prompt = create_prompt(additional_instructions =
-    "Note that the columns h1, h2, h3, through h11 contains a geohash representing a H3 hexagon index.
-    Higher numbers indicate higher zoom resolution (smaller hexes)
-    Always aggregate results to count the number of rows matching
-    the query to the desired hexagon. Always name the count column 'count'.
-    Remember to group by hexagon level to aggregate! 
-
-    Always rename the chosen hexagon column as 'h3id' in your final answer.
-    Only select the h3id and count in your final answer. 
-
-    Examples: 
-  user: 'show all bird occurrences at zoom level 6'
-
-  your reply: 
-
-    {
-    'query': 'CREATE OR REPLACE VIEW bird_occurrences_h6 AS SELECT gbif.h6 AS h3id, COUNT(*) AS count FROM gbif WHERE gbif.class = 'Aves' GROUP BY gbif.h6',
-    'table_name': 'bird_occurrences_h6',
-    'explanation': 'This query creates a view that shows the count of bird occurrences at zoom level 6. It selects the h6 column as the hexagon id, counts the number of rows for each hexagon, and groups the results by the h6 column.'
-    }
-
-    Refer to the full table by its table name as given above.
-    Be sure to list column names 
-    Be sure to generate fully valid SQL. Check your SQL for possible errors.
-    
-
-    Do not use the 'scientificname' column! Instead, filter specific species using the
-    binomial name as the 'species' column.
-
-    IMPORTANT: return raw JSON only, do not decorate your reply with markdown code syntax.
-    ")
-
-
-
-
-# Define the server
 server <- function(input, output, session) {
-
-  # first we draw the map with geosearch and draw controls.
   output$map <- renderMaplibre({
-    m <- maplibre(center = c(-110, 38), zoom = 2, pitch = 0, maxZoom = 12) |>
-      add_draw_control() |>
-      add_geocoder_control()
+    m <- mapgl::maplibre(zoom = 1, maxZoom = input$max_zoom)
 
-    m
+    # PMTiles sources MUST be added at the start
+    # Good to add all sources at start, then toggle with layer controls
+    m <- m |>
+      add_pmtiles_source(id = "county_source", url = counties) |>
+      add_source("region_source", us_states) |>
+      add_source("country_source", countries)
+
+    m <- m |>
+      add_geocoder_control() |>
+      add_draw_control() |>
+      add_fullscreen_control() |>
+      add_globe_control()
+
+    # Add any layer you want to be on by default
+
+    m |> add_countries()
   })
 
-  # React to user's polygon
-  observeEvent(input$get_features, {
-    bounds <- ""
-    aoi_info <- NULL
+  county_filter <- reactiveVal(NULL)
 
-    drawn_features <- get_drawn_features(mapboxgl_proxy("map"))
-    if(nrow(drawn_features) > 0) {
-
-      aoi <- as_dataset.sf(drawn_features)
-      h3_aoi <- get_h3_aoi(aoi)
-      subset <- h3_aoi |> distinct(h0) |> pull(h0)
-
-
-      print(h3_aoi)
-
-      urls <- paste0("https://minio.carlboettiger.info/public-gbif/hex/h0=", subset, "/part0.parquet")
-      gbif <- open_dataset(urls, tblname = "gbif")
-      # would be better to spatial join
-      bounds <- st_bbox(drawn_features)
-
-   #   timer <- bench::bench_time({
-   #   xmin <- bounds[1]; ymin <- bounds[2]; xmax <- bounds[3]; ymax <- bounds[4]
-   #   open_dataset(urls, tblname = "gbif") |> 
-   #     #filter(between(decimallongitude, xmin, xmax), between(decimallatitude, ymin, ymax)) |> 
-   #     mutate(geom = st_geomfromwkb(geom)) |> spatial_join(aoi) |>
-   #     as_view("gbif_aoi")
-   #   })
-   #   print(timer)
-
-      output$feature_output <- renderPrint(print(bounds))
-    }
-
-
-
-  observeEvent(input$user_msg, {
-
-    model <- reactive(input$select)()
-
-    if (grepl("cirrus", model)) {
-      agent <- ellmer::chat_vllm(
-        base_url = "https://llm.cirrus.carlboettiger.info/v1/",
-        model = "kosbu/Llama-3.3-70B-Instruct-AWQ",
-        api_key = Sys.getenv("CIRRUS_LLM_KEY"),
-        system_prompt = system_prompt,
-        api_args = list(temperature = 0)
-      )
-    } else {
-      agent <- ellmer::chat_vllm( # NRP models have too small a context window for useful interaction
-        base_url = "https://llm.nrp-nautilus.io/",
-        model = model,
-        api_key = Sys.getenv("NRP_API_KEY"),
-        system_prompt = system_prompt,
-        api_args = list(temperature = 0)
-      )
-    }
-
-
-    print("Agent thinking...")
-    stream <- agent$chat(input$chat)
-
-    # Parse response
-    response <- jsonlite::fromJSON(stream)
-
-    if ("query" %in% names(response)) {
-      output$sql_code <- renderText(str_wrap(response$query, width = 60))
-      output$explanation <- renderText(response$explanation)
-
-    # clear agent memory
-    agent$set_turns(NULL)
-
-    } else {
-      output$agent <- renderText(response$agent)
-    }
-
-      # cache the query
-      query_id <- digest::digest(paste(response$query, bounds, collapse=""))
-      data_url <- glue::glue("https://minio.carlboettiger.info/public-data/cache/{query_id}.h3j")
-      
-      # use tempfile as cache.  we could use database tempdir
-      cache_parquet <- tempfile(glue("{query_id}"), fileext = ".parquet")
-
-
-
-
-      # compute if not yet in cache
-      status <- httr::status_code(httr::HEAD(data_url))
-      if(status == 404) {
-        print("Computing...")
-        time <- bench::bench_time({
-          agent_query(stream) |>
-          hex_join(h3_aoi) |>
-          mutate(log_count = log(count)) |>
-          write_dataset(cache_parquet)
-        })
-        print(time)
+  observeEvent(input$show_counties, {
+    if (input$show_counties) {
+      proxy <- maplibre_proxy("map") |>
+        add_counties()
+      # Apply filter if one exists
+      if (!is.null(county_filter())) {
+        proxy |> set_filter("county_layer", county_filter())
       }
-      cached_data <- open_dataset(cache_parquet)
+    }
+    if (!input$show_counties) {
+      maplibre_proxy("map") |>
+        clear_layer("county_layer")
 
-      # so we can scale color and height to max value
-      biggest <-
-        cached_data |> 
-        summarise(max = max(log_count)) |>
-        pull(max) |>
-        first()
+      county_filter(NULL) # also clear filter
+    }
+  })
 
-      # so we can zoom to the selected data (choose random point)
-      aoi_info <- cached_data |>
-        head(1) |> 
-        mutate(zoom = h3_get_resolution(h3id),
-               lat = h3_cell_to_lat(h3id),
-               lng = h3_cell_to_lng(h3id)) |>
-        collect()
-                  
+  # Ex: Toggle counties layer
+  observeEvent(input$show_states, {
+    if (input$show_states) {
+      gdf <- spData::us_states
 
-      # draw on map
-      h3j <- glue("s3://public-data/cache/{query_id}.h3j")
-      cached_data |> to_h3j(h3j)
+      maplibre_proxy("map") |>
+        add_states() |>
+        fit_bounds(gdf, animate = TRUE)
+    } else {
+      maplibre_proxy("map") |> clear_layer("region_layer")
+    }
+  })
 
-      # adjust v-scale based on zoom:
-      vscale <- 10000 / aoi_info$zoom
+  # Ex: Select the feature the user clicked on and zoom into it
+  # This reacts to drawing features too
+  observeEvent(input$map_feature_click, {
+    my_layers <- c("region_layer", "county_layer")
+    x <- input$map_feature_click
 
-      # override previous map with drawn map
-      # we should use set_h3j_source and set_layer on maplibre_proxy instead.
-      output$map <- renderMaplibre({
-          m <- maplibre(center=c(-110, 38), zoom = 1, pitch = 0, maxZoom = 12) |>
-          add_h3j_source("h3j_source",
-                        url = data_url) |>
-          add_fill_extrusion_layer(
-            id = "h3j_layer",
-            source = "h3j_source",
-            tooltip = "count",
-            fill_extrusion_color = interpolate(
-              column = "log_count",
-              values = c(0, biggest),
-              stops = c("#430254", "#f83c70")
-            ),
-            fill_extrusion_height = list(
-              "interpolate",
-              list("linear"),
-              list("zoom"),
-              0, 0, biggest,
-              list("*", vscale, list("get", "log_count"))
-            ),
-            fill_extrusion_opacity = 0.7
-          )
-        if (!is.null(aoi_info)) {
-          m <- m |> fly_to(c(aoi_info$lng, aoi_info$lat), zoom = (aoi_info$zoom - 1))
-        }
+    if (x$layer == "region_layer") {
+      state_abbr <- x$properties$ST_ABBR
+      print(state_abbr)
 
-        m
-      }) # close renderMaplibre
-    }) # close observeEvent->get_features
-  }) # close observeEvent->user_msg
+      county_filter(list("==", get_column("ST_ABBR"), state_abbr))
+
+      state <- us_states |> filter(ST_ABBR == state_abbr)
+      maplibre_proxy("map") |> fit_bounds(state)
+
+      update_switch(
+        "show_states",
+        value = FALSE
+      )
+      update_switch(
+        "show_counties",
+        value = TRUE
+      )
+    }
+
+    if (x$layer == "county_layer") {
+      county <- x$properties$COUNTY
+      print(county)
+    }
+
+    # use x$layer and x$properties$FIPS ( ID column) to extract geom and plot
+  })
+
+  # Ex: Get a feature by name from Overture
+  # really we might want to filter to country, specify type, and fuzzy-match on names
+  observeEvent(input$feature, {
+    print(paste("Searching Overture for area:", input$feature))
+
+    #
+    new_gdf <- overture::get_division(input$feature)
+
+    print(new_gdf)
+    if (nrow(new_gdf) < 1) {
+      print(paste("No exact match for primary name:", input$feature))
+      maplibre_proxy("map")
+    } else {
+      bounds <- as.vector(sf::st_bbox(new_gdf))
+
+      # remove any existing overture layer first
+      maplibre_proxy("map") |> clear_layer("overture")
+
+      maplibre_proxy("map") |>
+        add_fill_layer(
+          id = "overture",
+          source = new_gdf,
+          fill_opacity = 0.3,
+          fill_color = "pink"
+        ) |>
+        fit_bounds(bounds, animate = TRUE)
+    }
+  }) |>
+    debounce(millis = 3000)
+  # more time to type?
+
+  # Ex Show a feature user has drawn on the map
+  observeEvent(input$get_features, {
+    print("Extracting drawn features")
+
+    drawn_features <- get_drawn_features(maplibre_proxy("map"))
+    print(drawn_features)
+  })
+
+  observeEvent(input$current_bbox, {
+    bbox <- sf::st_bbox(unlist(input$map_bbox), crs = 4326)
+    print("current bbox:")
+    print(bbox)
+  })
+
+  # Ex: Get POINT data from geocoder (OSM)
+  # could then react by operating on hex or some containing polygon
+  observeEvent(input$map_geocoder$result, {
+    temp <- tempfile(fileext = ".geojson")
+    output <- list(
+      type = "FeatureCollection",
+      features = input$map_geocoder$result$features
+    )
+    jsonlite::write_json(
+      output,
+      temp,
+      auto_unbox = TRUE
+    )
+    geo <- sf::st_read(temp)
+    print(geo)
+  })
+
+  # Get current features from a specified layer
+  # GDF layer only (not proxy URL / PMTiles layers)
+  observeEvent(input$visible_features, {
+    print("Extracting current features...")
+    proxy <- maplibre_proxy("map")
+    # layer_id be multiple layers or all layers
+    query_rendered_features(proxy)
+    features <- get_queried_features(proxy)
+    print(head(features))
+  })
+
+  # Ex: Update the fill color
+  observeEvent(input$color, {
+    maplibre_proxy("map") |>
+      set_paint_property("counties_layer", "fill-color", input$color)
+  })
 }
 
-# Run the app
-shinyApp(ui = ui, server = server)
+shinyApp(ui, server)
