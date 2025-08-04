@@ -30,7 +30,7 @@ ui <- page_sidebar(
         selected = "country_layer"
       ),
     ),
-
+    card(card_header("Filters"), actionLink("clear_filters", "🧹"), ),
     # Move states, countries to PMTiles Overture layers
     # Add support for filters
 
@@ -100,7 +100,7 @@ server <- function(input, output, session) {
   })
 
   # PMTiles layer filter
-  county_filter <- reactiveVal(NULL)
+  layer_filter <- reactiveVal(NULL)
 
   # Define layer configuration
   layer_config <- list(
@@ -134,7 +134,7 @@ server <- function(input, output, session) {
       state_abbr <- properties$ST_ABBR
       print(state_abbr)
 
-      county_filter(list("==", get_column("ST_ABBR"), state_abbr))
+      layer_filter(list("==", get_column("ST_ABBR"), state_abbr))
 
       state <- us_states |> filter(ST_ABBR == state_abbr)
       maplibre_proxy("map") |> fit_bounds(state)
@@ -151,7 +151,7 @@ server <- function(input, output, session) {
       county <- properties$COUNTY
       print(county)
 
-      county_filter(list("==", get_column("COUNTY"), county))
+      layer_filter(list("==", get_column("COUNTY"), county))
 
       # Update radio button to show tracts
       updateRadioButtons(
@@ -184,10 +184,9 @@ server <- function(input, output, session) {
 
     # Handle filter logic
     if (config$clear_filter) {
-      county_filter(NULL)
-    } else if (!is.null(county_filter())) {
-      proxy |> set_filter(input$layer_selection, county_filter())
+      layer_filter(NULL)
     }
+    proxy |> set_filter(input$layer_selection, layer_filter())
   })
 
   # Ex: Select the feature the user clicked on and zoom into it
@@ -204,6 +203,10 @@ server <- function(input, output, session) {
     }
 
     # use x$layer and x$properties$FIPS ( ID column) to extract geom and plot
+  })
+
+  observeEvent(input$clear_filters, {
+    maplibre_proxy("map") |> set_filter(input$layer_selection, NULL)
   })
 
   # Ex Show a feature user has drawn on the map
