@@ -106,7 +106,65 @@ server <- function(input, output, session) {
   layer_config <- list(
     country_layer = list(add_layer = add_countries, clear_filter = TRUE),
     region_layer = list(add_layer = add_states, clear_filter = TRUE),
-    county_layer = list(add_layer = add_counties, clear_filter = FALSE)
+    county_layer = list(add_layer = add_counties, clear_filter = FALSE),
+    tract_layer = list(add_layer = add_tracts, clear_filter = FALSE)
+  )
+
+  # Define click behavior configuration
+  click_config <- list(
+    country_layer = function(properties) {
+      country_name <- properties$iso_a2
+      print(paste("Clicked country:", country_name))
+
+      # For US-focused app, if user clicks on USA
+      if (country_name == "US") {
+        # Zoom to US bounds and switch to states layer
+        maplibre_proxy("map") |> fit_bounds(us_states, animate = TRUE)
+
+        # Update radio button to show states
+        updateRadioButtons(
+          session,
+          "layer_selection",
+          selected = "region_layer"
+        )
+      }
+    },
+
+    region_layer = function(properties) {
+      state_abbr <- properties$ST_ABBR
+      print(state_abbr)
+
+      county_filter(list("==", get_column("ST_ABBR"), state_abbr))
+
+      state <- us_states |> filter(ST_ABBR == state_abbr)
+      maplibre_proxy("map") |> fit_bounds(state)
+
+      # Update radio button to show counties
+      updateRadioButtons(
+        session,
+        "layer_selection",
+        selected = "county_layer"
+      )
+    },
+
+    county_layer = function(properties) {
+      county <- properties$COUNTY
+      print(county)
+
+      county_filter(list("==", get_column("COUNTY"), county))
+
+      # Update radio button to show tracts
+      updateRadioButtons(
+        session,
+        "layer_selection",
+        selected = "tract_layer"
+      )
+    },
+
+    tract_layer = function(properties) {
+      tract_fips <- properties$FIPS
+      print(paste("Clicked tract:", tract_fips))
+    }
   )
 
   # Handle layer selection changes
@@ -135,52 +193,16 @@ server <- function(input, output, session) {
   # Ex: Select the feature the user clicked on and zoom into it
   # This reacts to drawing features too
   observeEvent(input$map_feature_click, {
-    my_layers <- c("country_layer", "region_layer", "county_layer")
     x <- input$map_feature_click
-    print(x$properties)
+    # print(x$properties)
 
-    if (is.null(x$properties$mode)) {
-      if (x$layer == "country_layer") {
-        # Handle country click - zoom to country and switch to states
-        country_name <- x$properties$iso_a2
-        print(paste("Clicked country:", country_name))
+    # Get click handler for the clicked layer
+    click_handler <- click_config[[x$layer]]
 
-        # For US-focused app, if user clicks on USA
-        if (country_name == "US") {
-          # Zoom to US bounds and switch to states layer
-          maplibre_proxy("map") |> fit_bounds(us_states, animate = TRUE)
-
-          # Update radio button to show states
-          updateRadioButtons(
-            session,
-            "layer_selection",
-            selected = "region_layer"
-          )
-        }
-      }
-
-      if (x$layer == "region_layer") {
-        state_abbr <- x$properties$ST_ABBR
-        print(state_abbr)
-
-        county_filter(list("==", get_column("ST_ABBR"), state_abbr))
-
-        state <- us_states |> filter(ST_ABBR == state_abbr)
-        maplibre_proxy("map") |> fit_bounds(state)
-
-        # Update radio button to show counties
-        updateRadioButtons(
-          session,
-          "layer_selection",
-          selected = "county_layer"
-        )
-      }
-
-      if (x$layer == "county_layer") {
-        county <- x$properties$COUNTY
-        print(county)
-      }
+    if (!is.null(click_handler)) {
+      click_handler(x$properties)
     }
+
     # use x$layer and x$properties$FIPS ( ID column) to extract geom and plot
   })
 

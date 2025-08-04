@@ -83,7 +83,7 @@ add_tracts <- function(map) {
       fill_opacity = 0.2,
       fill_color = "purple",
       tooltip = concat(
-        "Name: ",
+        "County: ",
         get_column("COUNTY"),
         "<br>STATE: ",
         get_column("ST_ABBR"),
