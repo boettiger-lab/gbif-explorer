@@ -102,32 +102,33 @@ server <- function(input, output, session) {
   # PMTiles layer filter
   county_filter <- reactiveVal(NULL)
 
+  # Define layer configuration
+  layer_config <- list(
+    country_layer = list(add_layer = add_countries, clear_filter = TRUE),
+    region_layer = list(add_layer = add_states, clear_filter = TRUE),
+    county_layer = list(add_layer = add_counties, clear_filter = FALSE)
+  )
+
   # Handle layer selection changes
   observeEvent(input$layer_selection, {
     proxy <- maplibre_proxy("map")
 
-    # Clear all layers first
-    proxy |>
-      clear_layer("county_layer") |>
-      clear_layer("region_layer") |>
-      clear_layer("country_layer")
-
-    # Only reset county filter when switching away from counties to other layers
-    if (input$layer_selection != "county_layer") {
-      county_filter(NULL)
+    # Clear all configured layers
+    for (layer_id in names(layer_config)) {
+      proxy |> clear_layer(layer_id)
     }
 
-    # Add the selected layer
-    if (input$layer_selection == "country_layer") {
-      proxy |> add_countries()
-    } else if (input$layer_selection == "region_layer") {
-      proxy |> add_states()
-    } else if (input$layer_selection == "county_layer") {
-      proxy <- proxy |> add_counties()
-      # Apply filter if one exists
-      if (!is.null(county_filter())) {
-        proxy |> set_filter("county_layer", county_filter())
-      }
+    # Get configuration for selected layer
+    config <- layer_config[[input$layer_selection]]
+
+    # Always add the selected layer
+    proxy <- proxy |> config$add_layer()
+
+    # Handle filter logic
+    if (config$clear_filter) {
+      county_filter(NULL)
+    } else if (!is.null(county_filter())) {
+      proxy |> set_filter(input$layer_selection, county_filter())
     }
   })
 
