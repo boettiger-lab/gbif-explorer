@@ -16,9 +16,16 @@ ui <- page_sidebar(
   sidebar = sidebar(
     card(
       card_header("Layers"),
-      input_switch("show_countries", "Countries", value = TRUE),
-      input_switch("show_states", "States", value = FALSE),
-      input_switch("show_counties", "Counties", value = FALSE),
+      radioButtons(
+        "layer_selection",
+        "Select Layer:",
+        choices = list(
+          "Countries" = "country_layer",
+          "States" = "region_layer",
+          "Counties" = "county_layer"
+        ),
+        selected = "country_layer"
+      ),
     ),
     hr(),
     br(),
@@ -79,41 +86,62 @@ server <- function(input, output, session) {
 
   county_filter <- reactiveVal(NULL)
 
-  observeEvent(input$show_counties, {
-    if (input$show_counties) {
-      proxy <- maplibre_proxy("map") |>
-        add_counties()
+  # Handle layer selection changes
+  observeEvent(input$layer_selection, {
+    proxy <- maplibre_proxy("map")
+
+    # Clear all layers first
+    proxy |>
+      clear_layer("county_layer") |>
+      clear_layer("region_layer") |>
+      clear_layer("country_layer")
+
+    # Only reset county filter when switching away from counties to other layers
+    if (input$layer_selection != "county_layer") {
+      county_filter(NULL)
+    }
+
+    # Add the selected layer
+    if (input$layer_selection == "country_layer") {
+      proxy |> add_countries()
+    } else if (input$layer_selection == "region_layer") {
+      proxy |> add_states()
+    } else if (input$layer_selection == "county_layer") {
+      proxy <- proxy |> add_counties()
       # Apply filter if one exists
       if (!is.null(county_filter())) {
         proxy |> set_filter("county_layer", county_filter())
       }
     }
-    if (!input$show_counties) {
-      maplibre_proxy("map") |>
-        clear_layer("county_layer")
-
-      county_filter(NULL) # also clear filter
-    }
   })
 
   # Ex: Toggle counties layer
-  observeEvent(input$show_states, {
-    if (input$show_states) {
-      gdf <- spData::us_states
-
-      maplibre_proxy("map") |>
-        add_states() |>
-        fit_bounds(gdf, animate = TRUE)
-    } else {
-      maplibre_proxy("map") |> clear_layer("region_layer")
-    }
-  })
+  # observeEvent removed - now handled by layer_selection radio buttons
 
   # Ex: Select the feature the user clicked on and zoom into it
   # This reacts to drawing features too
   observeEvent(input$map_feature_click, {
-    my_layers <- c("region_layer", "county_layer")
+    my_layers <- c("country_layer", "region_layer", "county_layer")
     x <- input$map_feature_click
+
+    if (x$layer == "country_layer") {
+      # Handle country click - zoom to country and switch to states
+      country_name <- x$properties$iso_a2
+      print(paste("Clicked country:", country_name))
+
+      # For US-focused app, if user clicks on USA
+      if (country_name == "US") {
+        # Zoom to US bounds and switch to states layer
+        maplibre_proxy("map") |> fit_bounds(us_states, animate = TRUE)
+
+        # Update radio button to show states
+        updateRadioButtons(
+          session,
+          "layer_selection",
+          selected = "region_layer"
+        )
+      }
+    }
 
     if (x$layer == "region_layer") {
       state_abbr <- x$properties$ST_ABBR
@@ -124,13 +152,11 @@ server <- function(input, output, session) {
       state <- us_states |> filter(ST_ABBR == state_abbr)
       maplibre_proxy("map") |> fit_bounds(state)
 
-      update_switch(
-        "show_states",
-        value = FALSE
-      )
-      update_switch(
-        "show_counties",
-        value = TRUE
+      # Update radio button to show counties
+      updateRadioButtons(
+        session,
+        "layer_selection",
+        selected = "county_layer"
       )
     }
 
@@ -218,7 +244,7 @@ server <- function(input, output, session) {
   # Ex: Update the fill color
   observeEvent(input$color, {
     maplibre_proxy("map") |>
-      set_paint_property("counties_layer", "fill-color", input$color)
+      set_paint_property(input$layer_selection, "fill-color", input$color)
   })
 }
 
