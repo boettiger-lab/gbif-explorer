@@ -1,8 +1,6 @@
 library(overture)
 library(dplyr)
 library(duckdbfs)
-
-
 duckdbfs::duckdb_secrets()
 
 ## Make anonymous AWS S3 default endpoint for "overturemaps-us-west-2"
@@ -18,33 +16,28 @@ countries <- overture("divisions", "division_area") |>
   filter(subtype == "country", is_land) |>
   mutate(primary = struct_extract(names, "primary"))
 
-countries |>
-  to_geojson(
-    "countries.geojson",
-    id_col = "id"
-  )
+countries |> to_geojson("countries.geojson")
 
 regions <- overture("divisions", "division_area") |>
   filter(subtype == "region", is_land) |>
   mutate(primary = struct_extract(names, "primary"))
-regions |>
-  to_geojson(
-    "regions.geojson",
-    id_col = "id"
-  )
+regions |> to_geojson("regions.geojson")
 
+#regions |> write_dataset("s3://public-overturemaps/regions.parquet")
+regions |> filter(country == "US")
 
-county <- overture("divisions", "division_area") |>
+counties <- overture("divisions", "division_area") |>
   filter(subtype == "county", is_land) |>
   mutate(primary = struct_extract(names, "primary"))
-county |>
-  to_geojson(
-    "county.geojson",
-    id_col = "id"
-  )
+counties |> to_geojson("counties.geojson")
+
+read_csv("")
+
+unlink("countries.pmtiles")
+unlink("regions.pmtiles")
+unlink("counties.pmtiles")
 
 # Tippecanoe local only
-unlink("countries.pmtiles")
 processx::run(
   "tippecanoe",
   c(
@@ -73,9 +66,19 @@ processx::run(
     "--coalesce-densest-as-needed",
     "-o",
     "counties.pmtiles",
-    "county.geojson"
+    "counties.geojson"
   )
 )
+
+
+
+
+
+
+
+
+
+
 
 #duckdbfs::to_sf(gdf, crs = "epsg:4326") |>
 

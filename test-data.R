@@ -15,26 +15,20 @@ poly <- open_dataset(
 
 bench::bench_time({
   # 2.85s
-  poly_h3 <- get_h3_aoi(poly, 3) |> collect()
+  poly_h3 <- get_h3_aoi(poly, 3)
 })
 
 
 bench::bench_time({
   #14 s
-  poly_h5 <- get_h3_aoi(poly, 5) |> collect()
+  get_h3_aoi(poly, 5) |> write_dataset("tmp.parquet")
 })
+poly_h5 <- open_dataset("tmp.parquet")
 
 
-bench::bench_time({
-  #3.4 m
-  poly_h6 <- get_h3_aoi(poly, 6) |> collect()
-})
+poly_h5 <- get_h3_aoi(poly, 5)
 
-subset <- poly_h3 |> distinct(h0) |> pull()
-subset2 <- poly_h5 |> distinct(h0) |> pull()
-
-subset3 <- poly_h6 |> distinct(h0) |> pull()
-
+subset <- poly_h5 |> distinct(h0) |> pull()
 
 urls <- paste0(
   "https://minio.carlboettiger.info/public-gbif/hex/h0=",
@@ -43,38 +37,30 @@ urls <- paste0(
 )
 gbif <- open_dataset(urls, tblname = "gbif")
 
-bench::bench_time({
-  x <- gbif |> rename(h3id = h5) |> inner_join(poly_h5) |> compute()
+bench::bench_time({ # 3.7 s
+  gbif |>
+   select(species, genus, family, order,
+          class, phylum, h3id = h5) |>
+    inner_join(poly_h5) |> 
+    count(h3id) |>
+    write_dataset("richness.parquet")
 })
-con <- cached_connection()
-y <- tbl(con, "h3_aoi")
+
+bench::bench_time({ # 5 s
+  gbif |>
+   select(species, genus, family, order,
+          class, phylum, h3id = h5) |>
+    inner_join(poly_h5) |> 
+    count(species) |>
+    write_dataset("species.parquet")
+})
+
+bench::bench_time({ # 43 s
+  gbif |>
+   select(species, genus, family, order,
+          class, phylum, h3id = h5) |>
+    inner_join(poly_h5) |> 
+    write_dataset("selection.parquet")
+})
 
 
-hex_join <- function(x, y) {
-  res_x <- x |> head(1) |> mutate(res = h3_get_resolution(hexid)) |> pull(res)
-  res_y <- y |> head(1) |> mutate(res = h3_get_resolution(hexid)) |> pull(res)
-
-  if (res_x > res_y) {
-    y <- y |>
-      mutate(
-        hexid = unnest(
-          h3_cell_to_children(hexid, {
-            res_x
-          })
-        ),
-        hexid = toupper(hexid)
-      )
-  }
-
-  if (res_x < res_y) {
-    y <- y |>
-      mutate(
-        hexid = h3_cell_to_parent(hexid, {
-          res_x
-        })
-      )
-  }
-
-  inner_join(x, y)
-}
-hex_join(x, y)
