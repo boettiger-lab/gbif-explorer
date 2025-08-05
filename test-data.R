@@ -2,49 +2,112 @@ library(duckdbfs)
 library(dplyr)
 library(sf)
 library(spData)
+library(mapgl)
 source("utils.R")
-
+source("data-layers.R")
 duckdb_secrets()
+
+
+
 poly <- open_dataset(
-  "s3://public-overturemaps/countries.parquet",
+  "s3://public-overturemaps/regions.parquet",
   recursive = FALSE
 ) |>
-  filter(primary == "United States") |>
+  filter(primary == "Nevada") |>
   select(id, division_id, geom = geometry)
 
 
-bench::bench_time({
-  # 2.85s
-  poly_h3 <- get_h3_aoi(poly, 3)
-})
 
 
-bench::bench_time({
-  #14 s
-  get_h3_aoi(poly, 5) |> write_dataset("tmp.parquet")
-})
-poly_h5 <- open_dataset("tmp.parquet")
+
+dest <- glue::glue("s3://public-data/cache/biodiversity/nevada-all-z5-v1.h3j")
+url <- get_richness(poly, 5, dest)
 
 
-poly_h5 <- get_h3_aoi(poly, 5)
+maplibre(center = c(-110, 40.417), zoom = 5, pitch = 40) |>
+  add_h3j_source("h3j_source", url = url) |>
+  add_fill_extrusion_layer(
+    id = "h3j_layer",
+    source = "h3j_source",
+    tooltip = concat("Richness:", get_column("n")),
+    fill_extrusion_color = interpolate(
+      column = "value",
+      values = c(0, 1),
+      stops = c("#430254", "#f83c70")
+    ),
+    fill_extrusion_height = list("*", 100000, list("get", "value")),
+    fill_extrusion_opacity = 0.7
+  )
 
-subset <- poly_h5 |> distinct(h0) |> pull()
 
-urls <- paste0(
-  "https://minio.carlboettiger.info/public-gbif/hex/h0=",
-  subset,
-  "/part0.parquet"
-)
-gbif <- open_dataset(urls, tblname = "gbif")
+  list(
+      "interpolate",
+      list("linear"),
+      4,
+      0,
+      6,
+      list("*", "1000", list("get", "value"))
+    ),
+
+
+url = "https://minio.carlboettiger.info/public-data/cache/biodiversity/991ebc3b-dd31-4cb8-87ec-3ca964db6db4.h3j"
+maplibre(center = c(-118, 40.417), zoom = 6) |>
+      add_h3j_source("h3j_source", url = url) |>
+      add_richness()
+
+
+maplibre(center = c(-118, 40.417), zoom = 5) |>
+  add_h3j_source("h3j_source", url = url) |>
+  add_fill_layer(
+    id = "h3j_layer",
+    source = "h3j_source",
+    fill_opacity=0.1,
+    tooltip = concat("Richness:", get_column("n")),
+    fill_color = interpolate(
+      column = "value",
+      values = c(0, 1),
+      stops = c("#430254", "#f83c70")
+    )
+  )
+
+
+#####
+
+
+
+poly_h5 <- get_h3_aoi(poly, as.integer(5L))
+subset <- poly_hexed |> distinct(h0) |> pull()
+gbif <- open_gbif_partition(subset, server)
+
+	
 
 bench::bench_time({ # 3.7 s
   gbif |>
-   select(species, genus, family, order,
-          class, phylum, h3id = h5) |>
-    inner_join(poly_h5) |> 
+   select(specieskey, h3id = h5) |>
+    inner_join(poly_h5, by = "h3id") |> 
     count(h3id) |>
+    write_dataset("occurrence.parquet")
+})
+
+bench::bench_time({ 
+  gbif |>
+   select(specieskey, h3id = h5) |>
+    inner_join(poly_h5) |> 
+    distinct(specieskey,h3id) |>
+    count(h3id) |> 
+    mutate(geom = h3_cell_to_boundary_wkt(h3id)) |>
+    to_sf()
+})
+
+bench::bench_time({ 
+  gbif |>
+   select(specieskey, h3id = h5) |>
+    inner_join(poly_h5) |> 
+    distinct(specieskey,h3id) |>
+    count(h3id) |> 
     write_dataset("richness.parquet")
 })
+
 
 bench::bench_time({ # 5 s
   gbif |>

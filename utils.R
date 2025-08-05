@@ -1,8 +1,10 @@
 library(dplyr)
 library(duckdbfs)
 library(sf)
+library(glue)
 duckdbfs::load_h3()
 
+# assumes geom column is "geom"
 get_h3_aoi <- function(aoi, precision = 6L) {
   index <- as.integer(0L) # index for h0-partitioned data
 
@@ -35,35 +37,43 @@ get_h3_aoi <- function(aoi, precision = 6L) {
 }
 
 
-hex_res <- function(x) {
-  x |>
-    utils::head(1) |>
-    dplyr::mutate(res = h3_get_resolution(h3id)) |>
-    dplyr::pull(res)
+open_gbif_partition <- function(
+  subset,
+  server = Sys.getenv("AWS_PUBLIC_ENDPOINT", Sys.getenv("AWS_S3_ENDPOINT"))
+) {
+  urls <- paste0(
+    glue("https://{server}/public-gbif/hex/h0="),
+    subset,
+    "/part0.parquet"
+  )
+  gbif <- open_dataset(urls, tblname = "gbif")
 }
 
-# join by miss-matched hex resolution
-hex_join <- function(x, y) {
-  res_x <- hex_res(x)
-  res_y <- hex_res(y)
+get_richness <- function(
+  poly,
+  zoom,
+  cache = uuid::uuid(),
+  server = Sys.getenv("AWS_PUBLIC_ENDPOINT", Sys.getenv("AWS_S3_ENDPOINT"))
+) {
+  dest <- glue("s3://public-data/cache/biodiversity/{cache}.h3j")
 
-  if (res_x > res_y) {
-    y <- y |>
-      dplyr::mutate(
-        h3id = unnest(h3_cell_to_children(h3id, {
-          res_x
-        })),
-        h3id = toupper(h3id)
-      )
-  }
-  if (res_x < res_y) {
-    y <- y |>
-      dplyr::mutate(
-        h3id = h3_cell_to_parent(h3id, {
-          res_x
-        })
-      )
-  }
+  poly_hexed <- get_h3_aoi(poly, as.integer(zoom))
+  subset <- poly_hexed |> distinct(h0) |> pull()
+  gbif <- open_gbif_partition(subset, server)
 
-  dplyr::inner_join(x, y)
+  index <- paste0("h", zoom)
+  timer <- bench::bench_time({
+    # 3.7 s
+    gbif |>
+      select(species, genus, family, order, class, phylum, h3id = !!index) |>
+      inner_join(poly_hexed, by = "h3id") |>
+      distinct() |>
+      count(h3id) |>
+      mutate(logn = log(n), value = logn / max(logn)) |>
+      to_h3j(dest)
+  })
+
+  print(timer)
+
+  gsub("^s3://", glue::glue("https://{server}/"), dest)
 }

@@ -6,7 +6,12 @@ library(dplyr)
 library(duckdbfs)
 library(colourpicker)
 library(overture)
+library(shinybusy)
 source("data-layers.R")
+source("utils.R")
+
+# Required for h3j write
+duckdb_secrets()
 
 
 ui <- page_sidebar(
@@ -41,7 +46,7 @@ ui <- page_sidebar(
       card_header("Biodiversity"),
       actionLink("get_richness", "species richness")
     ),
-
+    shinybusy::add_busy_bar(),
     accordion(
       accordion_panel(
         "Filter taxa",
@@ -81,6 +86,10 @@ ui <- page_sidebar(
 
 
 server <- function(input, output, session) {
+  # Dynamic variables:
+  layer_filter <- reactiveVal(NULL)
+  selected_feature <- reactiveVal(NULL)
+
   # Set up the map:
   output$map <- renderMaplibre({
     m <- mapgl::maplibre(
@@ -104,9 +113,6 @@ server <- function(input, output, session) {
     # Add any layer you want to be on by default
     m |> add_countries()
   })
-
-  # PMTiles layer filter
-  layer_filter <- reactiveVal(NULL)
 
   # React to layer selection
   observeEvent(input$layer_selection, {
@@ -150,6 +156,14 @@ server <- function(input, output, session) {
         return()
       }
 
+      # record info about currently selected feature
+      selected_feature(list(
+        name = name,
+        layer = x$layer,
+        config = config,
+        properties = x$properties
+      ))
+
       # Set the filter to focus on the clicked feature only
       layer_filter(list(
         "==",
@@ -178,6 +192,25 @@ server <- function(input, output, session) {
         selected
       ))
     }
+  })
+
+  observeEvent(input$get_richness, {
+    x <- selected_feature()
+    id <- x$properties$id
+    zoom <- as.integer(input$map_zoom) - 1
+    poly <- open_dataset(x$config$parquet) |>
+      filter(.data[["id"]] == !!id) |>
+      rename(geom = geometry)
+
+    print(paste("Computing biodiversity for", x$name, "at zoom", zoom))
+    url <- get_richness(poly, zoom, id)
+
+    print(url)
+
+    maplibre_proxy("map") |>
+      clear_layer(x$config$next_layer) |>
+      add_h3j_source("h3j_source", url = url) |>
+      add_richness()
   })
 
   observeEvent(input$clear_filters, {

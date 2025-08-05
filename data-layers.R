@@ -86,15 +86,24 @@ add_tracts <- function(map) {
     )
 }
 
+add_richness <- function(map) {
+  map |>
+    add_fill_extrusion_layer(
+      id = "h3j_layer",
+      source = "h3j_source",
+      tooltip = concat("Richness:", get_column("n")),
+      fill_extrusion_color = interpolate(
+        column = "value",
+        values = c(0, 1),
+        stops = c("#430254", "#f83c70")
+      ),
+      fill_extrusion_height = list("*", 10000, list("get", "value")),
+      fill_extrusion_opacity = 0.05
+    )
+}
+
+
 # lazy data.frame versions
-
-countries_df <- open_dataset(f(
-  "https://{server}/public-overturemaps/countries.parquet"
-))
-regions_df <- open_dataset(f(
-  "https://{server}/public-overturemaps/regions.parquet"
-))
-
 
 # Define layer configuration
 layer_config <- list(
@@ -104,7 +113,10 @@ layer_config <- list(
     clear_filter = TRUE,
     name_property = "primary",
     filter_column = "country", # column in next layer
-    filter_property = "country"
+    filter_property = "country",
+    parquet = f(
+      "https://{server}/public-overturemaps/countries.parquet"
+    )
   ),
   region_layer = list(
     add_layer = add_regions,
@@ -112,7 +124,10 @@ layer_config <- list(
     clear_filter = FALSE,
     name_property = "primary",
     filter_column = "region",
-    filter_property = "region"
+    filter_property = "region",
+    parquet = f(
+      "https://{server}/public-overturemaps/regions.parquet"
+    )
   ),
   county_layer = list(
     add_layer = add_counties,
@@ -120,7 +135,10 @@ layer_config <- list(
     clear_filter = FALSE,
     name_property = "primary",
     filter_column = "COUNTY",
-    filter_property = "primary"
+    filter_property = "primary",
+    parquet = f(
+      "https://{server}/public-overturemaps/counties.parquet"
+    )
   ),
   tract_layer = list(
     add_layer = add_tracts,
