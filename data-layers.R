@@ -86,11 +86,11 @@ add_tracts <- function(map) {
     )
 }
 
-add_richness <- function(map) {
+add_richness <- function(map, gdf) {
   map |>
     add_fill_extrusion_layer(
-      id = "h3j_layer",
-      source = "h3j_source",
+      id = "richness",
+      source = gdf,
       tooltip = concat("Richness:", get_column("n")),
       fill_extrusion_color = interpolate(
         column = "value",

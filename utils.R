@@ -55,8 +55,6 @@ get_richness <- function(
   cache = uuid::uuid(),
   server = Sys.getenv("AWS_PUBLIC_ENDPOINT", Sys.getenv("AWS_S3_ENDPOINT"))
 ) {
-  dest <- glue("s3://public-data/cache/biodiversity/{cache}.h3j")
-
   poly_hexed <- get_h3_aoi(poly, as.integer(zoom))
   subset <- poly_hexed |> distinct(h0) |> pull()
   gbif <- open_gbif_partition(subset, server)
@@ -70,7 +68,9 @@ get_richness <- function(
       distinct() |>
       count(h3id) |>
       mutate(logn = log(n), value = logn / max(logn)) |>
-      to_h3j(dest)
+      mutate(geom = h3_cell_to_boundary_wkt(h3id)) |>
+      collect() |>
+      st_as_sf(wkt = "geom", crs = 4326)
   })
 
   print(timer)
