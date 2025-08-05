@@ -24,8 +24,9 @@ ui <- page_sidebar(
           "States" = "region_layer",
           "Counties" = "county_layer",
           "Tracts" = "tract_layer",
-          "Parks" = "park_layer",
-          "Fires" = "fire_layer"
+          "Protected Areas" = "park_layer",
+          "US fires" = "fire_layer",
+          "None" = "none"
         ),
         selected = "country_layer"
       ),
@@ -69,13 +70,17 @@ ui <- page_sidebar(
 
 server <- function(input, output, session) {
   output$map <- renderMaplibre({
-    m <- mapgl::maplibre(zoom = 1, maxZoom = input$max_zoom)
+    m <- mapgl::maplibre(
+      zoom = 1,
+      center = c(-80, 20),
+      maxZoom = input$max_zoom
+    )
 
     m <- m |>
-      add_pmtiles_source(id = "tract_source", url = tract) |>
-      add_pmtiles_source(id = "county_source", url = counties) |>
-      add_source("region_source", us_states) |>
-      add_source("country_source", countries)
+      add_pmtiles_source("tract_source", tract) |>
+      add_pmtiles_source("county_source", counties) |>
+      add_pmtiles_source("region_source", regions) |>
+      add_pmtiles_source("country_source", countries)
 
     m <- m |>
       add_fullscreen_control() |>
@@ -102,69 +107,42 @@ server <- function(input, output, session) {
   # PMTiles layer filter
   layer_filter <- reactiveVal(NULL)
 
+  # Track most recent clicked feature
+  last_clicked_name <- reactiveVal(NULL)
+  last_clicked_layer <- reactiveVal(NULL)
+
   # Define layer configuration
   layer_config <- list(
-    country_layer = list(add_layer = add_countries, clear_filter = TRUE),
-    region_layer = list(add_layer = add_states, clear_filter = TRUE),
-    county_layer = list(add_layer = add_counties, clear_filter = FALSE),
-    tract_layer = list(add_layer = add_tracts, clear_filter = FALSE)
-  )
-
-  # Define click behavior configuration
-  click_config <- list(
-    country_layer = function(properties) {
-      country_name <- properties$iso_a2
-      print(paste("Clicked country:", country_name))
-
-      # For US-focused app, if user clicks on USA
-      if (country_name == "US") {
-        # Zoom to US bounds and switch to states layer
-        maplibre_proxy("map") |> fit_bounds(us_states, animate = TRUE)
-
-        # Update radio button to show states
-        updateRadioButtons(
-          session,
-          "layer_selection",
-          selected = "region_layer"
-        )
-      }
-    },
-
-    region_layer = function(properties) {
-      state_abbr <- properties$ST_ABBR
-      print(state_abbr)
-
-      layer_filter(list("==", get_column("ST_ABBR"), state_abbr))
-
-      state <- us_states |> filter(ST_ABBR == state_abbr)
-      maplibre_proxy("map") |> fit_bounds(state)
-
-      # Update radio button to show counties
-      updateRadioButtons(
-        session,
-        "layer_selection",
-        selected = "county_layer"
-      )
-    },
-
-    county_layer = function(properties) {
-      county <- properties$COUNTY
-      print(county)
-
-      layer_filter(list("==", get_column("COUNTY"), county))
-
-      # Update radio button to show tracts
-      updateRadioButtons(
-        session,
-        "layer_selection",
-        selected = "tract_layer"
-      )
-    },
-
-    tract_layer = function(properties) {
-      tract_fips <- properties$FIPS
-      print(paste("Clicked tract:", tract_fips))
-    }
+    country_layer = list(
+      add_layer = add_countries,
+      next_layer = "region_layer",
+      clear_filter = TRUE,
+      name_property = "primary",
+      filter_column = "country", # column in next layer
+      filter_property = "country"
+    ),
+    region_layer = list(
+      add_layer = add_regions,
+      next_layer = "county_layer",
+      clear_filter = FALSE,
+      name_property = "primary",
+      filter_column = "region",
+      filter_property = "region"
+    ),
+    county_layer = list(
+      add_layer = add_counties,
+      next_layer = "tract_layer",
+      clear_filter = FALSE,
+      name_property = "primary",
+      filter_column = "COUNTY",
+      filter_property = "primary"
+    ),
+    tract_layer = list(
+      add_layer = add_tracts,
+      next_layer = NULL,
+      clear_filter = FALSE,
+      name_property = "FIPS"
+    )
   )
 
   # Handle layer selection changes
@@ -193,13 +171,41 @@ server <- function(input, output, session) {
   # This reacts to drawing features too
   observeEvent(input$map_feature_click, {
     x <- input$map_feature_click
-    # print(x$properties)
+    config <- layer_config[[x$layer]]
+    name <- x$properties[[config$name_property]]
 
-    # Get click handler for the clicked layer
-    click_handler <- click_config[[x$layer]]
+    # Filter next layer to the clicked feature
+    if (!is.null(config$next_layer) && !is.null(name)) {
+      selected <- x$properties[[config$filter_property]]
+      print(paste("Clicked:", name))
 
-    if (!is.null(click_handler)) {
-      click_handler(x$properties)
+      # Hack case: only US has below county_layer
+      if (x$layer == "county_layer" && x$properties[["country"]] != "US") {
+        print("no more layers")
+        return()
+      }
+
+      print(paste(
+        "Activating",
+        config$next_layer,
+        "and filtering",
+        config$filter_column,
+        "=",
+        selected
+      ))
+      # Set the filter to focus on the clicked feature only
+      layer_filter(list(
+        "==",
+        get_column(config$filter_column),
+        selected
+      ))
+
+      # and activate child layer inside it
+      updateRadioButtons(
+        session,
+        "layer_selection",
+        selected = config$next_layer
+      )
     }
 
     # use x$layer and x$properties$FIPS ( ID column) to extract geom and plot

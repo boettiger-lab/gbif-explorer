@@ -3,15 +3,6 @@ library(duckdbfs)
 library(sf)
 duckdbfs::load_h3()
 
-as_dataset.sf <- function(sf, ...) {
-  # cludgy way to get polygon into duckdb as spatial data
-  tmp <- tempfile(fileext = ".fgb")
-  sf |> sf::st_transform(4326) |> sf::write_sf(tmp, append = FALSE)
-  aoi <- duckdbfs::open_dataset(tmp, ...)
-
-  aoi
-}
-
 get_h3_aoi <- function(aoi, precision = 6L) {
   index <- as.integer(0L) # index for h0-partitioned data
 
@@ -43,6 +34,7 @@ get_h3_aoi <- function(aoi, precision = 6L) {
     as_view("h3_aoi")
 }
 
+
 hex_res <- function(x) {
   x |>
     utils::head(1) |>
@@ -50,6 +42,7 @@ hex_res <- function(x) {
     dplyr::pull(res)
 }
 
+# join by miss-matched hex resolution
 hex_join <- function(x, y) {
   res_x <- hex_res(x)
   res_y <- hex_res(y)

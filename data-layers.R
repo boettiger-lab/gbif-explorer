@@ -3,66 +3,59 @@
 
 library(mapgl)
 library(dplyr)
+library(duckdbfs)
 library(spData)
 library(sf)
 library(glue)
+f <- glue
+server <- Sys.getenv("AWS_PUBLIC_ENDPOINT", Sys.getenv("AWS_S3_ENDPOINT"))
 
-
-# Replace spData::world with all "countries" from Overture
-countries <- spData::world
+countries <- f("https://{server}/public-overturemaps/countries.pmtiles")
+# Look up layer name of PMTiles file so we don't have to manually enter
+#countries_layer_name <- sf::st_layers(paste0("/vsicurl/", countries))$name[1]
 add_countries <- function(map) {
   map |>
     add_fill_layer(
       id = "country_layer",
       source = "country_source",
-      fill_opacity = 0.3,
-      fill_color = "purple"
+      source_layer = "countries",
+      fill_opacity = 0.2,
+      fill_color = "purple",
+      tooltip = concat(
+        "Name: ",
+        get_column("primary")
+      )
     )
 }
 
-# Replace spData::us_states with all "regions" from Overture
-# meanwhile, hack with spData so states has ST_ABBR column
-library(datasets)
-us_states <-
-  spData::us_states |>
-  left_join(
-    tibble(
-      NAME = state.name,
-      ST_ABBR = state.abb,
-    ),
-    by = "NAME"
-  )
-add_states <- function(map) {
+regions <- f("https://{server}/public-overturemaps/regions.pmtiles")
+add_regions <- function(map) {
   map |>
     add_fill_layer(
       id = "region_layer",
       source = "region_source",
-      fill_opacity = 0.3,
-      fill_color = "purple"
+      source_layer = "regions",
+      fill_opacity = 0.2,
+      fill_color = "purple",
+      tooltip = concat(
+        "Name: ",
+        get_column("primary")
+      )
     )
 }
 
-# US Counties only.  Replace with Overture for World counties?
-counties <- "https://minio.carlboettiger.info/public-social-vulnerability/2022/SVI2022_US_county.pmtiles"
-suppressWarnings({
-  # Guess layer name of PMTiles file so we don't have to manually enter
-  counties_layer_name <- sf::st_layers(paste0("/vsicurl/", counties))$name[1]
-})
+counties <- f("https://{server}/public-overturemaps/counties.pmtiles")
 add_counties <- function(map) {
   map |>
     add_fill_layer(
       id = "county_layer",
       source = "county_source",
-      source_layer = counties_layer_name,
+      source_layer = "counties",
       fill_opacity = 0.2,
       fill_color = "purple",
       tooltip = concat(
         "Name: ",
-        get_column("COUNTY"),
-        "<br>STATE: ",
-        get_column("ST_ABBR"),
-        "<br>FIPS: ",
-        get_column("FIPS")
+        get_column("primary")
       )
     )
 }
@@ -92,3 +85,12 @@ add_tracts <- function(map) {
       )
     )
 }
+
+# lazy data.frame versions
+
+countries_df <- open_dataset(f(
+  "https://{server}/public-overturemaps/countries.parquet"
+))
+regions_df <- open_dataset(f(
+  "https://{server}/public-overturemaps/regions.parquet"
+))
