@@ -15,7 +15,7 @@ ui <- page_sidebar(
 
   sidebar = sidebar(
     card(
-      card_header("Layer"),
+      card_header("Areas"),
       radioButtons(
         "layer_selection",
         NULL,
@@ -24,18 +24,30 @@ ui <- page_sidebar(
           "States" = "region_layer",
           "Counties" = "county_layer",
           "Tracts" = "tract_layer",
-          "Protected Areas" = "park_layer",
-          "US fires" = "fire_layer",
+          #         "Protected Areas" = "park_layer",
+          #         "US fires" = "fire_layer",
           "None" = "none"
         ),
         selected = "country_layer"
       ),
     ),
-    card(card_header("Filters"), actionLink("clear_filters", "🧹"), ),
+    card(card_header("filters"), actionLink("clear_filters", "🧹"), ),
     # Move states, countries to PMTiles Overture layers
     # Add support for filters
 
     hr(),
+
+    card(
+      card_header("Biodiversity"),
+      actionLink("get_richness", "species richness")
+    ),
+
+    accordion(
+      accordion_panel(
+        "Filter taxa",
+      )
+    ),
+
     br(),
 
     accordion(
@@ -69,6 +81,7 @@ ui <- page_sidebar(
 
 
 server <- function(input, output, session) {
+  # Set up the map:
   output$map <- renderMaplibre({
     m <- mapgl::maplibre(
       zoom = 1,
@@ -92,60 +105,10 @@ server <- function(input, output, session) {
     m |> add_countries()
   })
 
-  # Toggle draw controls
-  observeEvent(input$toggle_controls, {
-    proxy <- maplibre_proxy("map") |> clear_controls()
-    if (input$toggle_controls) {
-      proxy |>
-        add_fullscreen_control() |>
-        add_globe_control() |>
-        add_draw_control() |>
-        add_geocoder_control()
-    }
-  })
-
   # PMTiles layer filter
   layer_filter <- reactiveVal(NULL)
 
-  # Track most recent clicked feature
-  last_clicked_name <- reactiveVal(NULL)
-  last_clicked_layer <- reactiveVal(NULL)
-
-  # Define layer configuration
-  layer_config <- list(
-    country_layer = list(
-      add_layer = add_countries,
-      next_layer = "region_layer",
-      clear_filter = TRUE,
-      name_property = "primary",
-      filter_column = "country", # column in next layer
-      filter_property = "country"
-    ),
-    region_layer = list(
-      add_layer = add_regions,
-      next_layer = "county_layer",
-      clear_filter = FALSE,
-      name_property = "primary",
-      filter_column = "region",
-      filter_property = "region"
-    ),
-    county_layer = list(
-      add_layer = add_counties,
-      next_layer = "tract_layer",
-      clear_filter = FALSE,
-      name_property = "primary",
-      filter_column = "COUNTY",
-      filter_property = "primary"
-    ),
-    tract_layer = list(
-      add_layer = add_tracts,
-      next_layer = NULL,
-      clear_filter = FALSE,
-      name_property = "FIPS"
-    )
-  )
-
-  # Handle layer selection changes
+  # React to layer selection
   observeEvent(input$layer_selection, {
     proxy <- maplibre_proxy("map")
 
@@ -167,9 +130,11 @@ server <- function(input, output, session) {
     proxy |> set_filter(input$layer_selection, layer_filter())
   })
 
-  # Ex: Select the feature the user clicked on and zoom into it
-  # This reacts to drawing features too
+  # React to selected feature
   observeEvent(input$map_feature_click, {
+    # NOTE: This reacts to drawing features too
+
+    # Look up the configuration for the active layer.
     x <- input$map_feature_click
     config <- layer_config[[x$layer]]
     name <- x$properties[[config$name_property]]
@@ -185,6 +150,25 @@ server <- function(input, output, session) {
         return()
       }
 
+      # Set the filter to focus on the clicked feature only
+      layer_filter(list(
+        "==",
+        get_column(config$filter_column),
+        selected
+      ))
+
+      # fly_to, jump_to, or ease_to ?
+      maplibre_proxy("map") |>
+        fly_to(zoom = input$map_zoom + 2, center = c(x$lng, x$lat))
+
+      # and activate child layer inside it
+      updateRadioButtons(
+        session,
+        "layer_selection",
+        selected = config$next_layer
+      )
+
+      # Optional logging to console
       print(paste(
         "Activating",
         config$next_layer,
@@ -193,22 +177,7 @@ server <- function(input, output, session) {
         "=",
         selected
       ))
-      # Set the filter to focus on the clicked feature only
-      layer_filter(list(
-        "==",
-        get_column(config$filter_column),
-        selected
-      ))
-
-      # and activate child layer inside it
-      updateRadioButtons(
-        session,
-        "layer_selection",
-        selected = config$next_layer
-      )
     }
-
-    # use x$layer and x$properties$FIPS ( ID column) to extract geom and plot
   })
 
   observeEvent(input$clear_filters, {
@@ -251,7 +220,18 @@ server <- function(input, output, session) {
     print(geo)
   })
 
-  # Ex: Update the fill color
+  # Toggle draw controls
+  observeEvent(input$toggle_controls, {
+    proxy <- maplibre_proxy("map") |> clear_controls()
+    if (input$toggle_controls) {
+      proxy |>
+        add_fullscreen_control() |>
+        add_globe_control() |>
+        add_draw_control() |>
+        add_geocoder_control()
+    }
+  })
+  # Update the fill color
   observeEvent(input$color, {
     maplibre_proxy("map") |>
       set_paint_property(input$layer_selection, "fill-color", input$color)

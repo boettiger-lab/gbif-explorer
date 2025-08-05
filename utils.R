@@ -22,7 +22,7 @@ get_h3_aoi <- function(aoi, precision = 6L) {
       # unnest: one h3 per row
       h3id = unnest(h3id)
     ) |>
-    # Also tell me the h0.  Would it be faster to just do on geom?
+    # Also tell me the h0.
     mutate(
       h0 = h3_h3_to_string(h3_cell_to_parent(h3id, {
         index

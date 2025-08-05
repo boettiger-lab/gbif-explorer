@@ -1,4 +1,9 @@
-# US Counties only.  Replace with Overture for World counties?
+## Consider using for US?  Modify parquet/pmtiles to be schema-compliant to Overture, +
+## additional properties.
+
+# Would be great to filter by incomes > x percentile and then compute data
+
+# US Counties only.
 counties <- "https://minio.carlboettiger.info/public-social-vulnerability/2022/SVI2022_US_county.pmtiles"
 suppressWarnings({
   # Guess layer name of PMTiles file so we don't have to manually enter
@@ -46,42 +51,5 @@ add_tracts <- function(map) {
         "<br>FIPS: ",
         get_column("FIPS")
       )
-    )
-}
-
-
-# Replace spData::world with all "countries" from Overture
-replaced <- function() {
-  countries <- spData::world
-  add_countries <- function(map) {
-    map |>
-      add_fill_layer(
-        id = "country_layer",
-        source = "country_source",
-        fill_opacity = 0.3,
-        fill_color = "purple"
-      )
-  }
-}
-
-# Replace spData::us_states with all "regions" from Overture
-# meanwhile, hack with spData so states has ST_ABBR column
-library(datasets)
-us_states <-
-  spData::us_states |>
-  left_join(
-    tibble(
-      NAME = state.name,
-      ST_ABBR = state.abb,
-    ),
-    by = "NAME"
-  )
-add_states <- function(map) {
-  map |>
-    add_fill_layer(
-      id = "region_layer",
-      source = "region_source",
-      fill_opacity = 0.3,
-      fill_color = "purple"
     )
 }

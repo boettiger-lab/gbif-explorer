@@ -11,6 +11,7 @@ duckdbfs::duckdb_secrets(
   bucket = "overturemaps-us-west-2"
 )
 
+# Consider adding census / SVI info (US only).
 
 countries <- overture("divisions", "division_area") |>
   filter(subtype == "country", is_land) |>
@@ -69,15 +70,6 @@ processx::run(
     "counties.geojson"
   )
 )
-
-
-
-
-
-
-
-
-
 
 
 #duckdbfs::to_sf(gdf, crs = "epsg:4326") |>

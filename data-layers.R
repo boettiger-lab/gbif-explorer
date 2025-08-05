@@ -94,3 +94,38 @@ countries_df <- open_dataset(f(
 regions_df <- open_dataset(f(
   "https://{server}/public-overturemaps/regions.parquet"
 ))
+
+
+# Define layer configuration
+layer_config <- list(
+  country_layer = list(
+    add_layer = add_countries,
+    next_layer = "region_layer",
+    clear_filter = TRUE,
+    name_property = "primary",
+    filter_column = "country", # column in next layer
+    filter_property = "country"
+  ),
+  region_layer = list(
+    add_layer = add_regions,
+    next_layer = "county_layer",
+    clear_filter = FALSE,
+    name_property = "primary",
+    filter_column = "region",
+    filter_property = "region"
+  ),
+  county_layer = list(
+    add_layer = add_counties,
+    next_layer = "tract_layer",
+    clear_filter = FALSE,
+    name_property = "primary",
+    filter_column = "COUNTY",
+    filter_property = "primary"
+  ),
+  tract_layer = list(
+    add_layer = add_tracts,
+    next_layer = NULL,
+    clear_filter = FALSE,
+    name_property = "FIPS"
+  )
+)
