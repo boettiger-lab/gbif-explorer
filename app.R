@@ -203,14 +203,11 @@ server <- function(input, output, session) {
       rename(geom = geometry)
 
     print(paste("Computing biodiversity for", x$name, "at zoom", zoom))
-    url <- get_richness(poly, zoom, id)
-
-    print(url)
+    gdf <- get_richness(poly, zoom, id)
 
     maplibre_proxy("map") |>
       clear_layer(x$config$next_layer) |>
-      add_h3j_source("h3j_source", url = url) |>
-      add_richness()
+      add_richness(gdf)
   })
 
   observeEvent(input$clear_filters, {
