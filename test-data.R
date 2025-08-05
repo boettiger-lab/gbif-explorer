@@ -39,7 +39,7 @@ maplibre(center = c(-110, 40.417), zoom = 5, pitch = 40) |>
     fill_extrusion_opacity = 0.7
   )
 
-
+# fancier vertical scaling
   list(
       "interpolate",
       list("linear"),
@@ -76,8 +76,8 @@ maplibre(center = c(-118, 40.417), zoom = 5) |>
 
 
 poly_h5 <- get_h3_aoi(poly, as.integer(5L))
-subset <- poly_hexed |> distinct(h0) |> pull()
-gbif <- open_gbif_partition(subset, server)
+subset <- poly_h5 |> distinct(h0) |> pull()
+gbif <- open_gbif_partition(subset)
 
 	
 
@@ -90,13 +90,14 @@ bench::bench_time({ # 3.7 s
 })
 
 bench::bench_time({ 
-  gbif |>
+  gdf <- gbif |>
    select(specieskey, h3id = h5) |>
     inner_join(poly_h5) |> 
     distinct(specieskey,h3id) |>
     count(h3id) |> 
     mutate(geom = h3_cell_to_boundary_wkt(h3id)) |>
-    to_sf()
+    collect() |>
+     st_as_sf(wkt = "geom")
 })
 
 bench::bench_time({ 
