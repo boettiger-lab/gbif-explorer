@@ -61,8 +61,7 @@ get_richness <- function(
 
   index <- paste0("h", zoom)
   timer <- bench::bench_time({
-    # 3.7 s
-    gbif |>
+    gdf <- gbif |>
       select(species, genus, family, order, class, phylum, h3id = !!index) |>
       inner_join(poly_hexed, by = "h3id") |>
       distinct() |>
@@ -74,6 +73,5 @@ get_richness <- function(
   })
 
   print(timer)
-
-  gsub("^s3://", glue::glue("https://{server}/"), dest)
+  gdf
 }
