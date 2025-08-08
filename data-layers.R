@@ -95,16 +95,33 @@ add_richness <- function(map, gdf) {
       fill_extrusion_color = interpolate(
         column = "value",
         values = c(0, 1),
-        stops = c("#430254", "#f83c70")
+        stops = c("#f0ffe4", "#234b02")
       ),
       fill_extrusion_height = list("*", 10000, list("get", "value")),
-      fill_extrusion_opacity = 0.05
+      fill_extrusion_opacity = 0.7
     )
 }
 
 
+add_richness_2d <- function(map, gdf) {
+  map |>
+    add_fill_layer(
+      id = "richness",
+      source = gdf,
+      tooltip = concat("Richness:", get_column("n")),
+      fill_color = interpolate(
+        column = "value",
+        values = c(0, 1),
+        stops = c("#f0ffe4", "#234b02")
+      ),
+      fill_opacity = 0.5
+    )
+}
+
 # lazy data.frame versions
 
+
+current_drawing_parquet <- file.path(tempdir(), "current_drawing.geojson") 
 # Define layer configuration
 layer_config <- list(
   country_layer = list(
@@ -145,5 +162,11 @@ layer_config <- list(
     next_layer = NULL,
     clear_filter = FALSE,
     name_property = "FIPS"
+  ),
+  current_drawing = list(
+    clear_filter = FALSE,
+    parquet = current_drawing_parquet
   )
 )
+# Should richness be included?
+

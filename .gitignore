@@ -54,3 +54,4 @@ rsconnect/
 *.geojson
 *.pmtiles
 Rplots.pdf
+.tmp/

@@ -67,7 +67,12 @@ get_richness <- function(
       distinct() |>
       count(h3id) |>
       mutate(logn = log(n), value = logn / max(logn)) |>
-      mutate(geom = h3_cell_to_boundary_wkt(h3id)) |>
+      mutate(geom = h3_cell_to_boundary_wkt(h3id))
+
+    ## Warn if over 11000 features, and take first ones
+
+    gdf <- gdf |>
+      head(20000) |> # max number of features
       collect() |>
       st_as_sf(wkt = "geom", crs = 4326)
   })

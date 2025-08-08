@@ -44,7 +44,17 @@ ui <- page_sidebar(
 
     card(
       card_header("Biodiversity"),
-      actionLink("get_richness", "species richness")
+      actionLink("get_richness", "get sp richness"),
+      sliderInput(
+          "hex_adjust",
+          "hex scale",
+          min = 1,
+          max = 9,
+          value = 3,
+          step = 1
+        ),
+      actionLink("clear_richness", "🧹")
+
     ),
     shinybusy::add_busy_bar(),
     accordion(
@@ -143,6 +153,9 @@ server <- function(input, output, session) {
     # Look up the configuration for the active layer.
     x <- input$map_feature_click
     config <- layer_config[[x$layer]]
+
+    if(is.null(config)) { return() }
+
     name <- x$properties[[config$name_property]]
 
     # Filter next layer to the clicked feature
@@ -197,14 +210,22 @@ server <- function(input, output, session) {
   observeEvent(input$get_richness, {
     x <- selected_feature()
     id <- x$properties$id
-    zoom <- as.integer(input$map_zoom) - 1
-    poly <- open_dataset(x$config$parquet) |>
-      filter(.data[["id"]] == !!id) |>
-      rename(geom = geometry)
+    zoom <- as.integer(input$map_zoom)
+    poly <- open_dataset(x$config$parquet) 
+    
+    if("id" %in% colnames(poly)) {
+      poly <- poly |>
+      filter(.data[["id"]] == !!id)
+    }
+
+    if("geometry" %in% colnames(poly)){
+      poly <- poly |> rename(geom = geometry)
+    }
 
     print(paste("Computing biodiversity for", x$name, "at zoom", zoom))
     gdf <- get_richness(poly, zoom, id)
 
+    print(paste(nrow(gdf), "features"))
     maplibre_proxy("map") |>
       clear_layer(x$config$next_layer) |>
       add_richness(gdf)
@@ -225,7 +246,17 @@ server <- function(input, output, session) {
   observeEvent(input$current_bbox, {
     bbox <- sf::st_bbox(unlist(input$map_bbox), crs = 4326)
     print("current bbox:")
-    print(bbox)
+    gdf <- st_sf(geometry = st_as_sfc(st_bbox(bbox)))
+    print(gdf)
+    unlink(current_drawing_parquet)
+    gdf |> st_write(current_drawing_parquet)
+
+      selected_feature(list(
+        name = "bbox",
+        layer = "current_drawing",
+        config = list(parquet = current_drawing_parquet),
+        properties = list(id = "current_drawing")
+      ))
 
     # Should we grab polygons from active layer inside bbox?
     # Could allow for better cache behavior
@@ -246,10 +277,16 @@ server <- function(input, output, session) {
     )
     geo <- sf::st_read(temp)
 
+    
+
     # get parent polygon from active layer via duckdbfs st_contains
     print(geo)
   })
 
+
+  observeEvent(input$clear_richness, {
+    maplibre_proxy("map") |> clear_layer("richness")
+  })
   # Toggle draw controls
   observeEvent(input$toggle_controls, {
     proxy <- maplibre_proxy("map") |> clear_controls()
