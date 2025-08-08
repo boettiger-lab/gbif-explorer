@@ -9,6 +9,7 @@ library(overture)
 library(shinybusy)
 source("data-layers.R")
 source("utils.R")
+source("taxa-filter.R")
 
 # Required for h3j write
 duckdb_secrets()
@@ -45,22 +46,13 @@ ui <- page_sidebar(
     card(
       card_header("Biodiversity"),
       actionLink("get_richness", "get sp richness"),
-      sliderInput(
-          "hex_adjust",
-          "hex scale",
-          min = 1,
-          max = 9,
-          value = 3,
-          step = 1
-        ),
       actionLink("clear_richness", "🧹")
-
     ),
     shinybusy::add_busy_bar(),
-    accordion(
-      accordion_panel(
-        "Filter taxa",
-      )
+    taxonomicSelectorCard(
+      "taxa_selector",
+      "Select Taxa",
+      include_reset = TRUE
     ),
 
     br(),
@@ -94,11 +86,17 @@ ui <- page_sidebar(
   ),
 )
 
-
 server <- function(input, output, session) {
+  taxa_selections <- taxonomicSelectorServer("taxa_selector")
+
   # Dynamic variables:
   layer_filter <- reactiveVal(NULL)
   selected_feature <- reactiveVal(NULL)
+
+  observeEvent(taxa_selections$filter_trigger(), {
+    print("taxa selections:")
+    print(taxa_selections$selections())
+  })
 
   # Set up the map:
   output$map <- renderMaplibre({
@@ -154,7 +152,9 @@ server <- function(input, output, session) {
     x <- input$map_feature_click
     config <- layer_config[[x$layer]]
 
-    if(is.null(config)) { return() }
+    if (is.null(config)) {
+      return()
+    }
 
     name <- x$properties[[config$name_property]]
 
@@ -211,14 +211,14 @@ server <- function(input, output, session) {
     x <- selected_feature()
     id <- x$properties$id
     zoom <- as.integer(input$map_zoom)
-    poly <- open_dataset(x$config$parquet) 
-    
-    if("id" %in% colnames(poly)) {
+    poly <- open_dataset(x$config$parquet)
+
+    if ("id" %in% colnames(poly)) {
       poly <- poly |>
-      filter(.data[["id"]] == !!id)
+        filter(.data[["id"]] == !!id)
     }
 
-    if("geometry" %in% colnames(poly)){
+    if ("geometry" %in% colnames(poly)) {
       poly <- poly |> rename(geom = geometry)
     }
 
@@ -251,12 +251,12 @@ server <- function(input, output, session) {
     unlink(current_drawing_parquet)
     gdf |> st_write(current_drawing_parquet)
 
-      selected_feature(list(
-        name = "bbox",
-        layer = "current_drawing",
-        config = list(parquet = current_drawing_parquet),
-        properties = list(id = "current_drawing")
-      ))
+    selected_feature(list(
+      name = "bbox",
+      layer = "current_drawing",
+      config = list(parquet = current_drawing_parquet),
+      properties = list(id = "current_drawing")
+    ))
 
     # Should we grab polygons from active layer inside bbox?
     # Could allow for better cache behavior
@@ -277,12 +277,9 @@ server <- function(input, output, session) {
     )
     geo <- sf::st_read(temp)
 
-    
-
     # get parent polygon from active layer via duckdbfs st_contains
     print(geo)
   })
-
 
   observeEvent(input$clear_richness, {
     maplibre_proxy("map") |> clear_layer("richness")
