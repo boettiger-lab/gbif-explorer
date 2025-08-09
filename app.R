@@ -227,7 +227,7 @@ server <- function(input, output, session) {
     taxa = taxa_selections$selections()
     gdf <- get_richness(poly = poly, zoom = zoom, taxa_selections = taxa)
 
-    print(paste(nrow(gdf), "features"))
+    # print(paste(nrow(gdf), "features"))
     maplibre_proxy("map") |>
       clear_layer(x$config$next_layer) |>
       add_richness(gdf)

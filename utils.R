@@ -50,12 +50,11 @@ open_gbif_partition <- function(
 }
 
 open_gbif_region <- function(
-  poly,
+  poly_hexed,
   zoom,
   cache = uuid::uuid(),
   server = Sys.getenv("AWS_PUBLIC_ENDPOINT", Sys.getenv("AWS_S3_ENDPOINT"))
 ) {
-  poly_hexed <- get_h3_aoi(poly, as.integer(zoom))
   subset <- poly_hexed |> distinct(h0) |> pull()
   gbif <- open_gbif_partition(subset, server)
 
@@ -95,14 +94,15 @@ get_richness <- function(
   warning = TRUE,
   server = Sys.getenv("AWS_PUBLIC_ENDPOINT", Sys.getenv("AWS_S3_ENDPOINT"))
 ) {
-  gbif <- open_gbif_region(poly, zoom, cache, server)
+  poly_hexed <- get_h3_aoi(poly, as.integer(zoom))
 
-  gbif <- filter_gbif_taxa(gbif, taxa_selections)
+  gbif <- open_gbif_region(poly_hexed, zoom, cache, server)
+  #gbif <- filter_gbif_taxa(gbif, taxa_selections)
 
   index <- paste0("h", zoom)
   timer <- bench::bench_time({
     gbif |>
-      select(taxon_key, h3id = !!index) |>
+      select(taxonkey, h3id = !!index) |>
       inner_join(poly_hexed, by = "h3id") |>
       distinct() |>
       count(h3id) |>
@@ -115,11 +115,11 @@ get_richness <- function(
     if (warning) {
       n_features <- gbif |> count() |> pull(n)
       if (n_features > max_features) {
-        warning(paste("returning only first", max_features, "of", n_features.))
+        warning(paste("returning only first", max_features, "of", n_features))
       }
     }
 
-    gbif |>
+    gbif <- gbif |>
       head(max_features) |> # max number of features
       collect() |>
       st_as_sf(wkt = "geom", crs = 4326)
