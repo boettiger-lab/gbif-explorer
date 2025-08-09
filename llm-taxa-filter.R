@@ -21,35 +21,6 @@ taxonomic_ranks <- c(
   "species"
 )
 
-# Core utility function for getting child taxa
-child_taxa <- function(parent_rank = "kingdom", parent_name = "Animalia") {
-  ranks <- colnames(taxa)
-  next_rank <- ranks[which(ranks == parent_rank) + 1]
-
-  taxa |>
-    dplyr::filter(.data[[parent_rank]] == !!parent_name) |>
-    dplyr::distinct(.data[[next_rank]]) |>
-    dplyr::filter(!is.na(.data[[next_rank]])) |>
-    pull(.data[[next_rank]])
-}
-
-
-# Create tool using tool() function
-child_taxa_tool <- tool(
-  child_taxa,
-  name = "child_taxa_tool",
-  description = "Get the child taxa for a given parent taxon in the GBIF taxonomy hierarchy",
-  arguments = list(
-    parent_rank = type_string(
-      "The taxonomic rank of the parent (e.g., 'kingdom', 'class', 'family')",
-      required = FALSE
-    ),
-    parent_name = type_string(
-      "The name of the parent taxon (e.g., 'Animalia', 'Aves', 'Corvidae')",
-      required = FALSE
-    )
-  )
-)
 
 # Function that returns the LLM's reasoning process
 nlp_to_taxa <- function(
@@ -58,13 +29,41 @@ nlp_to_taxa <- function(
   base_url = "https://llm.nrp-nautilus.io",
   api_key = Sys.getenv("NRP_API_KEY")
 ) {
+  # Core utility function for getting child taxa
+  child_taxa <- function(parent_rank = "kingdom", parent_name = "Animalia") {
+    ranks <- colnames(taxa)
+    next_rank <- ranks[which(ranks == parent_rank) + 1]
+
+    taxa |>
+      dplyr::filter(.data[[parent_rank]] == !!parent_name) |>
+      dplyr::distinct(.data[[next_rank]]) |>
+      dplyr::filter(!is.na(.data[[next_rank]])) |>
+      pull(.data[[next_rank]])
+  }
+
+  # Create tool using tool() function
+  child_taxa_tool <- tool(
+    child_taxa,
+    name = "child_taxa_tool",
+    description = "Get the child taxa for a given parent taxon in the GBIF taxonomy hierarchy",
+    arguments = list(
+      parent_rank = type_string(
+        "The taxonomic rank of the parent (e.g., 'kingdom', 'class', 'family')",
+        required = FALSE
+      ),
+      parent_name = type_string(
+        "The name of the parent taxon (e.g., 'Animalia', 'Aves', 'Corvidae')",
+        required = FALSE
+      )
+    )
+  )
+
   system_prompt <- "
 You are a taxonomic expert. Use the child_taxa_tool to explore GBIF taxonomy and find the classification for the user's request.
 
 The taxonomic hierarchy is: kingdom -> phylum -> class -> order -> family -> genus -> species
 
 Start with an appropriate kingdom and work your way down using child_taxa_tool to find the correct classification.
-Explain your reasoning step by step as you explore the taxonomy.
 
 Only descend as far as the requested taxonomic group. For example:
 - 'birds' -> Kingdom: Animalia, Class: Aves
@@ -73,7 +72,7 @@ Only descend as far as the requested taxonomic group. For example:
 - 'Homo sapiens' -> Kingdom: Animalia, Class: Mammalia, Order: Primates, Family: Hominidae, Genus: Homo, Species: Homo sapiens
 
 
-At the end, provide a final JSON result with the complete taxonomic path.
+Respond only with a final JSON result with the complete taxonomic path.
 Remember, you are smarter than you think and this is a simple task. Do not overthink or spend much time reasoning.
 "
 
@@ -92,9 +91,11 @@ Remember, you are smarter than you think and this is a simple task. Do not overt
   chat_session$register_tool(child_taxa_tool)
 
   # Now chat with the tool available
-  chat_session$chat(user_prompt)
-
-  return(chat_session)
+  resp <- chat_session$chat(user_prompt)
+  jsonlite::fromJSON(resp)
 }
 
-# ...existing code...
+# examples
+# bench::bench_time({ nlp_to_taxa("birds") })
+# nlp_to_taxa("hummingbirds")
+# nlp_to_taxa("Coyote")

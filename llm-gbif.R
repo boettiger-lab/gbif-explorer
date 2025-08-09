@@ -1,0 +1,101 @@
+library(ellmer)
+
+library(shiny)
+library(duckdbfs)
+library(dplyr)
+library(glue)
+library(stringr)
+
+# Load GBIF taxa dataset
+server <- Sys.getenv("AWS_PUBLIC_ENDPOINT", Sys.getenv("AWS_S3_ENDPOINT"))
+taxa <- open_dataset(glue("https://{server}/public-gbif/taxa.parquet"))
+
+
+# Function that returns the LLM's reasoning process
+txt_to_taxa <- function(
+  user_request,
+  model = "kimi",
+  base_url = "https://llm.nrp-nautilus.io",
+  api_key = Sys.getenv("NRP_API_KEY")
+) {
+  # Core utility function for getting taxa
+  gbif_taxonomy <- function(rank = "class", name = "Aves") {
+    server <- Sys.getenv("AWS_PUBLIC_ENDPOINT", Sys.getenv("AWS_S3_ENDPOINT"))
+    taxa <- open_dataset(glue("https://{server}/public-gbif/taxa.parquet"))
+    taxonomic_ranks <- c(
+      "kingdom",
+      "phylum",
+      "class",
+      "order",
+      "family",
+      "genus",
+      "species"
+    )
+
+    i <- which(taxonomic_ranks == rank)
+    who <- taxonomic_ranks[1:i]
+    taxa |>
+      dplyr::filter(.data[[rank]] == !!name) |>
+      select(dplyr::all_of(who)) |>
+      distinct() |>
+      dplyr::collect()
+  }
+
+  # Create tool using tool() function
+  taxa_tool <- tool(
+    gbif_taxonomy,
+    name = "taxa_tool",
+    description = "Get the GBIF taxonomy: a column for each taxonomic rank, with rows for each classification",
+    arguments = list(
+      rank = type_string(
+        "The taxonomic rank (e.g., 'kingdom', 'class', 'family')",
+        required = TRUE
+      ),
+      name = type_string(
+        "The name of the taxon (e.g., 'Animalia', 'Aves', 'Corvidae')",
+        required = TRUE
+      )
+    )
+  )
+
+  system_prompt <- "
+You are a taxonomic expert. You take a user's query and return the classification heirachy of the requested group.
+The taxonomic hierarchy is: kingdom -> phylum -> class -> order -> family -> genus -> species
+
+Only descend as far as the requested taxonomic group. For example:
+- 'birds' -> Kingdom: Animalia, Class: Aves
+- 'crows' -> Kingdom: Animalia, Class: Aves, Family: Corvidae
+- 'mammals' -> Kingdom: Animalia, Class: Mammalia
+- 'Homo sapiens' -> Kingdom: Animalia, Class: Mammalia, Order: Primates, Family: Hominidae, Genus: Homo, Species: Homo sapiens
+
+You have access to the `taxa_tool` which takes a rank and name and returns a data.frame with the parent classification.
+Use the tool to verify your answer.  For example, 'birds' you would call `taxa_tool('class', 'Aves')` to confirm,
+and adjust your answer as needed.
+
+Respond only with a final JSON result with the complete taxonomic path.
+Remember, you are smarter than you think and this is a simple task. Do not overthink or spend much time reasoning, speed is better.
+"
+
+  user_prompt <- glue("Find the taxonomic classification for: '{user_request}'")
+
+  # Create chat session and register the tool
+  chat_session <- chat_openai(
+    model = model,
+    base_url = base_url,
+    api_key = api_key,
+
+    system_prompt = system_prompt
+  )
+
+  # Register the tool on the chat session
+  chat_session$register_tool(taxa_tool)
+
+  # Now chat with the tool available
+  resp <- chat_session$chat(user_prompt)
+  jsonlite::fromJSON(resp)
+}
+
+# examples
+# bench::bench_time({ txt_to_taxa("hummingbirds") })
+# txt_to_taxa("hummingbirds")
+# txt_to_taxa("Coyote")
