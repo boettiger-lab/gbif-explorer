@@ -61,8 +61,7 @@ open_gbif_region <- function(
   return(gbif)
 }
 
-filter_gbif_taxa <- function(gbif, taxa_selections) {
-  selections <- taxa_selections$selections()
+filter_gbif_taxa <- function(gbif, selections) {
 
   # If no selections made, return original dataset
   if (length(selections) == 0) {
@@ -97,7 +96,7 @@ get_richness <- function(
   poly_hexed <- get_h3_aoi(poly, as.integer(zoom))
 
   gbif <- open_gbif_region(poly_hexed, zoom, cache, server)
-  #gbif <- filter_gbif_taxa(gbif, taxa_selections)
+  gbif <- filter_gbif_taxa(gbif, taxa_selections)
 
   index <- paste0("h", zoom)
   timer <- bench::bench_time({
