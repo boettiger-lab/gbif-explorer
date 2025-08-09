@@ -208,6 +208,7 @@ server <- function(input, output, session) {
   })
 
   observeEvent(input$get_richness, {
+    # Make this more generic handler of getting the active feature
     x <- selected_feature()
     id <- x$properties$id
     zoom <- as.integer(input$map_zoom)
@@ -223,7 +224,8 @@ server <- function(input, output, session) {
     }
 
     print(paste("Computing biodiversity for", x$name, "at zoom", zoom))
-    gdf <- get_richness(poly, zoom, id)
+    taxa = taxa_selections$selections()
+    gdf <- get_richness(poly = poly, zoom = zoom, taxa_selections = taxa)
 
     print(paste(nrow(gdf), "features"))
     maplibre_proxy("map") |>

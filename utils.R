@@ -49,7 +49,7 @@ open_gbif_partition <- function(
   gbif <- open_dataset(urls, tblname = "gbif")
 }
 
-get_richness <- function(
+open_gbif_region <- function(
   poly,
   zoom,
   cache = uuid::uuid(),
@@ -59,24 +59,72 @@ get_richness <- function(
   subset <- poly_hexed |> distinct(h0) |> pull()
   gbif <- open_gbif_partition(subset, server)
 
+  return(gbif)
+}
+
+filter_gbif_taxa <- function(gbif, taxa_selections) {
+  selections <- taxa_selections$selections()
+
+  # If no selections made, return original dataset
+  if (length(selections) == 0) {
+    return(gbif)
+  }
+
+  # Start with the original dataset
+  filtered_gbif <- gbif
+
+  # Apply filters for each selected taxonomic rank
+  for (rank in names(selections)) {
+    if (rank %in% colnames(gbif)) {
+      filtered_gbif <- filtered_gbif |>
+        dplyr::filter(.data[[rank]] == !!selections[[rank]])
+    }
+  }
+
+  return(filtered_gbif)
+}
+
+
+get_richness <- function(
+  poly,
+  zoom,
+  taxa_selections = list(),
+  cache = uuid::uuid(),
+  local_cache = tempfile("richness_calc", fileext = ".parquet"),
+  max_features = getOption("shiny_max_features", 20000L),
+  warning = TRUE,
+  server = Sys.getenv("AWS_PUBLIC_ENDPOINT", Sys.getenv("AWS_S3_ENDPOINT"))
+) {
+  gbif <- open_gbif_region(poly, zoom, cache, server)
+
+  gbif <- filter_gbif_taxa(gbif, taxa_selections)
+
   index <- paste0("h", zoom)
   timer <- bench::bench_time({
-    gdf <- gbif |>
-      select(species, genus, family, order, class, phylum, h3id = !!index) |>
+    gbif |>
+      select(taxon_key, h3id = !!index) |>
       inner_join(poly_hexed, by = "h3id") |>
       distinct() |>
       count(h3id) |>
       mutate(logn = log(n), value = logn / max(logn)) |>
-      mutate(geom = h3_cell_to_boundary_wkt(h3id))
+      mutate(geom = h3_cell_to_boundary_wkt(h3id)) |>
+      write_dataset(local_cache)
 
-    ## Warn if over 11000 features, and take first ones
+    gbif <- open_dataset(local_cache)
 
-    gdf <- gdf |>
-      head(20000) |> # max number of features
+    if (warning) {
+      n_features <- gbif |> count() |> pull(n)
+      if (n_features > max_features) {
+        warning(paste("returning only first", max_features, "of", n_features.))
+      }
+    }
+
+    gbif |>
+      head(max_features) |> # max number of features
       collect() |>
       st_as_sf(wkt = "geom", crs = 4326)
   })
 
   print(timer)
-  gdf
+  gbif
 }
