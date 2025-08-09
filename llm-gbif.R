@@ -14,7 +14,7 @@ taxa <- open_dataset(glue("https://{server}/public-gbif/taxa.parquet"))
 # Function that returns the LLM's reasoning process
 txt_to_taxa <- function(
   user_request,
-  model = "kimi",
+  model = "qwen3", # qwen3 fastest?
   base_url = "https://llm.nrp-nautilus.io",
   api_key = Sys.getenv("NRP_API_KEY")
 ) {
@@ -71,6 +71,8 @@ Only descend as far as the requested taxonomic group. For example:
 You have access to the `taxa_tool` which takes a rank and name and returns a data.frame with the parent classification.
 Use the tool to verify your answer.  For example, 'birds' you would call `taxa_tool('class', 'Aves')` to confirm,
 and adjust your answer as needed.
+
+If you are asked for 'All' or 'all species', return an empty JSON array.
 
 Respond only with a final JSON result with the complete taxonomic path.
 Remember, you are smarter than you think and this is a simple task. Do not overthink or spend much time reasoning, speed is better.
