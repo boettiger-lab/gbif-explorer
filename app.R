@@ -1,4 +1,5 @@
 library(shiny)
+library(shinychat)
 library(bslib)
 library(mapgl)
 library(sf)
@@ -10,6 +11,7 @@ library(shinybusy)
 source("data-layers.R")
 source("utils.R")
 source("taxa-filter.R")
+#source("llm-gbif.R")
 
 # Required for h3j write
 duckdb_secrets()
@@ -17,8 +19,9 @@ duckdb_secrets()
 
 ui <- page_sidebar(
   title = "Interactive feature selection",
-  # Add custom CSS for smaller font size
+  #shinybusy::add_busy_spinner("fading-circle"),
 
+  shinybusy::add_busy_bar(),
   sidebar = sidebar(
     card(
       card_header("Areas"),
@@ -45,10 +48,10 @@ ui <- page_sidebar(
 
     card(
       card_header("Biodiversity"),
+      chat_ui("chat", placeholder = "hummingbirds"),
       actionLink("get_richness", "get sp richness"),
       actionLink("clear_richness", "🧹")
     ),
-    shinybusy::add_busy_bar(),
     taxonomicSelectorCard(
       "taxa_selector",
       "Select Taxa",
@@ -92,12 +95,18 @@ server <- function(input, output, session) {
   # Dynamic variables:
   layer_filter <- reactiveVal(NULL)
   selected_feature <- reactiveVal(NULL)
+  taxa_filter <- reactiveVal(NULL)
 
   observeEvent(taxa_selections$filter_trigger(), {
     print("taxa selections:")
     print(taxa_selections$selections())
+    taxa_filter(taxa_selections$selections())
   })
-
+  observeEvent(input$chat_user_input, {
+    #taxa_selected <- txt_to_taxa(input$chat_user_input)
+    #print(taxa_selected)
+    #taxa_filter(taxa_selected)
+  })
   # Set up the map:
   output$map <- renderMaplibre({
     m <- mapgl::maplibre(
@@ -209,7 +218,12 @@ server <- function(input, output, session) {
 
   observeEvent(input$get_richness, {
     # Make this more generic handler of getting the active feature
+
     x <- selected_feature()
+    if (is.null(x)) {
+      warning("select a feature first")
+      return()
+    }
     id <- x$properties$id
     zoom <- as.integer(input$map_zoom)
     poly <- open_dataset(x$config$parquet)
@@ -223,11 +237,24 @@ server <- function(input, output, session) {
       poly <- poly |> rename(geom = geometry)
     }
 
-    print(paste("Computing biodiversity for", x$name, "at zoom", zoom))
-    taxa = taxa_selections$selections()
-    gdf <- get_richness(poly = poly, zoom = zoom, taxa_selections = taxa)
+    # selected_taxa <- taxa_filter()
+    selected_taxa <- taxa_selections$selections()
+    print(selected_taxa)
+    print(paste(
+      "Computing biodiversity for",
+      x$name,
+      "at zoom",
+      zoom,
+      "for taxa:",
+      paste(selected_taxa, collapse = ":")
+    ))
+    gdf <- get_richness(
+      poly = poly,
+      zoom = zoom,
+      taxa_selections = selected_taxa
+    )
 
-    # print(paste(nrow(gdf), "features"))
+    print(paste(nrow(gdf), "features"))
     maplibre_proxy("map") |>
       clear_layer(x$config$next_layer) |>
       add_richness(gdf)
