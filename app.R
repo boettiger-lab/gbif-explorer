@@ -1,27 +1,32 @@
 library(shiny)
 library(shinychat)
+library(shinybusy)
 library(bslib)
-library(mapgl)
+library(colourpicker)
+library(markdown)
+
 library(sf)
 library(dplyr)
 library(duckdbfs)
-library(colourpicker)
-library(overture)
-library(shinybusy)
+
+library(mapgl)
+library(stringr)
+library(jsonlite)
+library(glue)
 source("data-layers.R")
 source("utils.R")
 source("taxa-filter.R")
+
+
 #source("llm-gbif.R")
 
 # Required for h3j write
 duckdb_secrets()
 
-
 ui <- page_sidebar(
   title = "Interactive feature selection",
-  #shinybusy::add_busy_spinner("fading-circle"),
+  shinybusy::add_busy_spinner("fading-circle"),
 
-  shinybusy::add_busy_bar(),
   sidebar = sidebar(
     card(
       card_header("Areas"),

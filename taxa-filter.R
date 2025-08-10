@@ -1,14 +1,3 @@
-library(shiny)
-library(duckdbfs)
-library(dplyr)
-library(glue)
-library(stringr)
-
-# Load GBIF taxa dataset
-server <- Sys.getenv("AWS_PUBLIC_ENDPOINT", Sys.getenv("AWS_S3_ENDPOINT"))
-taxa <- open_dataset(glue("https://{server}/public-gbif/taxa.parquet"))
-
-# Define taxonomic hierarchy
 taxonomic_ranks <- c(
   "kingdom",
   "phylum",
@@ -18,9 +7,12 @@ taxonomic_ranks <- c(
   "genus",
   "species"
 )
-
+server <- Sys.getenv("AWS_PUBLIC_ENDPOINT", Sys.getenv("AWS_S3_ENDPOINT"))
+taxa <- open_dataset(glue("https://{server}/public-gbif/taxa.parquet"))
 # Core utility function for getting child taxa
 child_taxa <- function(parent_rank = "kingdom", parent_name = "Animalia") {
+  # Load GBIF taxa dataset
+
   ranks <- colnames(taxa)
   next_rank <- ranks[which(ranks == parent_rank) + 1]
 
@@ -37,6 +29,8 @@ taxonomicSelectorUI <- function(
   title = "Select Taxonomic Level",
   include_reset = TRUE
 ) {
+  # Define taxonomic hierarchy
+
   ns <- NS(id)
 
   ui_elements <- list(

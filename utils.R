@@ -1,12 +1,7 @@
-library(dplyr)
-library(duckdbfs)
-library(sf)
-library(glue)
-duckdbfs::load_h3()
-
 # assumes geom column is "geom"
 get_h3_aoi <- function(aoi, precision = 6L) {
   index <- as.integer(0L) # index for h0-partitioned data
+  duckdbfs::load_h3()
 
   # consider auto-retry at higher precision if subset is empty.
   precision <- as.integer(precision)
@@ -62,7 +57,6 @@ open_gbif_region <- function(
 }
 
 filter_gbif_taxa <- function(gbif, selections) {
-
   # If no selections made, return original dataset
   if (length(selections) == 0) {
     return(gbif)

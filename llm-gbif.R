@@ -1,15 +1,3 @@
-library(ellmer)
-
-library(shiny)
-library(duckdbfs)
-library(dplyr)
-library(glue)
-library(stringr)
-
-# Load GBIF taxa dataset
-server <- Sys.getenv("AWS_PUBLIC_ENDPOINT", Sys.getenv("AWS_S3_ENDPOINT"))
-taxa <- open_dataset(glue("https://{server}/public-gbif/taxa.parquet"))
-
 
 # Function that returns the LLM's reasoning process
 txt_to_taxa <- function(
@@ -18,6 +6,10 @@ txt_to_taxa <- function(
   base_url = "https://llm.nrp-nautilus.io",
   api_key = Sys.getenv("NRP_API_KEY")
 ) {
+  # Load GBIF taxa dataset
+  server <- Sys.getenv("AWS_PUBLIC_ENDPOINT", Sys.getenv("AWS_S3_ENDPOINT"))
+  taxa <- open_dataset(glue("https://{server}/public-gbif/taxa.parquet"))
+
   # Core utility function for getting taxa
   gbif_taxonomy <- function(rank = "class", name = "Aves") {
     server <- Sys.getenv("AWS_PUBLIC_ENDPOINT", Sys.getenv("AWS_S3_ENDPOINT"))
