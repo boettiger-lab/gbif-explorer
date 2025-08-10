@@ -1,3 +1,7 @@
+library(conflicted)
+conflicts_prefer(dplyr::filter)
+conflicts_prefer(mapgl::interpolate)
+
 library(shiny)
 library(shinychat)
 library(shinybusy)
@@ -17,8 +21,7 @@ source("data-layers.R")
 source("utils.R")
 source("taxa-filter.R")
 
-
-#source("llm-gbif.R")
+source("llm-gbif.R")
 
 # Required for h3j write
 duckdb_secrets()
@@ -45,11 +48,11 @@ ui <- page_sidebar(
         selected = "country_layer"
       ),
     ),
-    card(card_header("filters"), actionLink("clear_filters", "🧹"), ),
+    #card(card_header("filters"), actionLink("clear_filters", "🧹"), ),
     # Move states, countries to PMTiles Overture layers
     # Add support for filters
 
-    hr(),
+  
 
     card(
       card_header("Biodiversity"),
@@ -106,9 +109,10 @@ server <- function(input, output, session) {
     taxa_filter(taxa_selections$selections())
   })
   observeEvent(input$chat_user_input, {
-    #taxa_selected <- txt_to_taxa(input$chat_user_input)
+    taxa_selected <- txt_to_taxa(input$chat_user_input)
     #print(taxa_selected)
-    #taxa_filter(taxa_selected)
+    taxa_filter(taxa_selected)
+    chat_append("chat", "done")
   })
   # Set up the map:
   output$map <- renderMaplibre({

@@ -1,4 +1,3 @@
-
 # Function that returns the LLM's reasoning process
 txt_to_taxa <- function(
   user_request,
@@ -7,13 +6,15 @@ txt_to_taxa <- function(
   api_key = Sys.getenv("NRP_API_KEY")
 ) {
   # Load GBIF taxa dataset
-  server <- Sys.getenv("AWS_PUBLIC_ENDPOINT", Sys.getenv("AWS_S3_ENDPOINT"))
-  taxa <- open_dataset(glue("https://{server}/public-gbif/taxa.parquet"))
+  # server <- Sys.getenv("AWS_PUBLIC_ENDPOINT", Sys.getenv("AWS_S3_ENDPOINT"))
+  # taxa <- duckdbfs::open_dataset(glue::glue("https://{server}/public-gbif/taxa.parquet"))
 
   # Core utility function for getting taxa
   gbif_taxonomy <- function(rank = "class", name = "Aves") {
     server <- Sys.getenv("AWS_PUBLIC_ENDPOINT", Sys.getenv("AWS_S3_ENDPOINT"))
-    taxa <- open_dataset(glue("https://{server}/public-gbif/taxa.parquet"))
+    taxa <- duckdbfs::open_dataset(glue::glue(
+      "https://{server}/public-gbif/taxa.parquet"
+    ))
     taxonomic_ranks <- c(
       "kingdom",
       "phylum",
@@ -28,22 +29,22 @@ txt_to_taxa <- function(
     who <- taxonomic_ranks[1:i]
     taxa |>
       dplyr::filter(.data[[rank]] == !!name) |>
-      select(dplyr::all_of(who)) |>
-      distinct() |>
+      dplyr::select(dplyr::all_of(who)) |>
+      dplyr::distinct() |>
       dplyr::collect()
   }
 
   # Create tool using tool() function
-  taxa_tool <- tool(
+  taxa_tool <- ellmer::tool(
     gbif_taxonomy,
     name = "taxa_tool",
     description = "Get the GBIF taxonomy: a column for each taxonomic rank, with rows for each classification",
     arguments = list(
-      rank = type_string(
+      rank = ellmer::type_string(
         "The taxonomic rank (e.g., 'kingdom', 'class', 'family')",
         required = TRUE
       ),
-      name = type_string(
+      name = ellmer::type_string(
         "The name of the taxon (e.g., 'Animalia', 'Aves', 'Corvidae')",
         required = TRUE
       )
@@ -70,10 +71,12 @@ Respond only with a final JSON result with the complete taxonomic path.
 Remember, you are smarter than you think and this is a simple task. Do not overthink or spend much time reasoning, speed is better.
 "
 
-  user_prompt <- glue("Find the taxonomic classification for: '{user_request}'")
+  user_prompt <- glue::glue(
+    "Find the taxonomic classification for: '{user_request}'"
+  )
 
   # Create chat session and register the tool
-  chat_session <- chat_openai(
+  chat_session <- ellmer::chat_openai(
     model = model,
     base_url = base_url,
     api_key = api_key,

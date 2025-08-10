@@ -8,15 +8,15 @@ countries <- f("https://{server}/public-overturemaps/countries.pmtiles")
 #countries_layer_name <- sf::st_layers(paste0("/vsicurl/", countries))$name[1]
 add_countries <- function(map) {
   map |>
-    add_fill_layer(
+    mapgl::add_fill_layer(
       id = "country_layer",
       source = "country_source",
       source_layer = "countries",
       fill_opacity = 0.2,
       fill_color = "purple",
-      tooltip = concat(
+      tooltip = mapgl::concat(
         "Name: ",
-        get_column("primary")
+        mapgl::get_column("primary")
       )
     )
 }
@@ -24,15 +24,15 @@ add_countries <- function(map) {
 regions <- f("https://{server}/public-overturemaps/regions.pmtiles")
 add_regions <- function(map) {
   map |>
-    add_fill_layer(
+    mapgl::add_fill_layer(
       id = "region_layer",
       source = "region_source",
       source_layer = "regions",
       fill_opacity = 0.2,
       fill_color = "purple",
-      tooltip = concat(
+      tooltip = mapgl::concat(
         "Name: ",
-        get_column("primary")
+        mapgl::get_column("primary")
       )
     )
 }
@@ -40,15 +40,15 @@ add_regions <- function(map) {
 counties <- f("https://{server}/public-overturemaps/counties.pmtiles")
 add_counties <- function(map) {
   map |>
-    add_fill_layer(
+    mapgl::add_fill_layer(
       id = "county_layer",
       source = "county_source",
       source_layer = "counties",
       fill_opacity = 0.2,
       fill_color = "purple",
-      tooltip = concat(
+      tooltip = mapgl::concat(
         "Name: ",
-        get_column("primary")
+        mapgl::get_column("primary")
       )
     )
 }
@@ -62,30 +62,30 @@ suppressWarnings({
 
 add_tracts <- function(map) {
   map |>
-    add_fill_layer(
+    mapgl::add_fill_layer(
       id = "tract_layer",
       source = "tract_source",
       source_layer = tract_layer_name,
       fill_opacity = 0.2,
       fill_color = "purple",
-      tooltip = concat(
+      tooltip = mapgl::concat(
         "County: ",
-        get_column("COUNTY"),
+        mapgl::get_column("COUNTY"),
         "<br>STATE: ",
-        get_column("ST_ABBR"),
+        mapgl::get_column("ST_ABBR"),
         "<br>FIPS: ",
-        get_column("FIPS")
+        mapgl::get_column("FIPS")
       )
     )
 }
 
 add_richness <- function(map, gdf) {
   map |>
-    add_fill_extrusion_layer(
+    mapgl::add_fill_extrusion_layer(
       id = "richness",
       source = gdf,
-      tooltip = concat("Richness:", get_column("n")),
-      fill_extrusion_color = interpolate(
+      tooltip = concat("Richness:", mapgl::get_column("n")),
+      fill_extrusion_color = mapgl::interpolate(
         column = "value",
         values = c(0, 1),
         stops = c("#f0ffe4", "#234b02")
@@ -101,8 +101,8 @@ add_richness_2d <- function(map, gdf) {
     add_fill_layer(
       id = "richness",
       source = gdf,
-      tooltip = concat("Richness:", get_column("n")),
-      fill_color = interpolate(
+      tooltip = mapgl::concat("Richness:", mapgl::get_column("n")),
+      fill_color = mapgl::interpolate(
         column = "value",
         values = c(0, 1),
         stops = c("#f0ffe4", "#234b02")
