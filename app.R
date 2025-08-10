@@ -98,8 +98,6 @@ server <- function(input, output, session) {
   taxa_filter <- reactiveVal(NULL)
 
   observeEvent(taxa_selections$filter_trigger(), {
-    print("taxa selections:")
-    print(taxa_selections$selections())
     taxa_filter(taxa_selections$selections())
   })
   observeEvent(input$chat_user_input, {
@@ -217,28 +215,29 @@ server <- function(input, output, session) {
   })
 
   observeEvent(input$get_richness, {
-    # Make this more generic handler of getting the active feature
-
+    # do nothing if no feature is selected?  Alternately grab screen?
     x <- selected_feature()
     if (is.null(x)) {
       warning("select a feature first")
       return()
     }
+
+    # selected_feature() must return these. make this more robust
     id <- x$properties$id
     zoom <- as.integer(input$map_zoom)
     poly <- open_dataset(x$config$parquet)
 
+    # FIXME abstract this into selected_feature() behavior.
     if ("id" %in% colnames(poly)) {
       poly <- poly |>
         filter(.data[["id"]] == !!id)
     }
-
     if ("geometry" %in% colnames(poly)) {
       poly <- poly |> rename(geom = geometry)
     }
 
-    # selected_taxa <- taxa_filter()
-    selected_taxa <- taxa_selections$selections()
+    selected_taxa <- taxa_filter()
+
     print(selected_taxa)
     print(paste(
       "Computing biodiversity for",
