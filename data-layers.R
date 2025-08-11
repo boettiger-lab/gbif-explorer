@@ -113,7 +113,7 @@ add_richness_2d <- function(map, gdf) {
 
 # lazy data.frame versions
 
-current_drawing_parquet <- file.path(tempdir(), "current_drawing.geojson")
+current_drawing_parquet <- file.path(tempdir(), "current_drawing.parquet")
 # Define layer configuration
 layer_config <- list(
   country_layer = list(
@@ -158,6 +158,7 @@ layer_config <- list(
   current_drawing = list(
     clear_filter = FALSE,
     parquet = current_drawing_parquet
-  )
+  ),
+  none = list(add_layer = function(map, ...) map, clear_filter = TRUE)
 )
 # Should richness be included?

@@ -33,7 +33,7 @@ ui <- page_sidebar(
   sidebar = sidebar(
     width = 300,
     card(
-      card_header("Areas"),
+      card_header("Area selector"),
       radioButtons(
         "layer_selection",
         NULL,
@@ -56,8 +56,7 @@ ui <- page_sidebar(
     card(
       card_header("Biodiversity"),
       chat_ui("chat", placeholder = "hummingbirds"),
-      actionLink("get_richness", "get sp richness"),
-      actionLink("clear_richness", "🧹")
+      actionLink("clear_richness", "🧹 clear richness")
     ),
 
     br(),
@@ -104,20 +103,44 @@ server <- function(input, output, session) {
   taxa_selections <- taxonomicSelectorServer("taxa_selector")
 
   # Dynamic variables:
-  layer_filter <- reactiveVal(NULL)
+  layer_filter <- reactiveVal(NULL) # active layer filter (maplibre filter)
+  taxa_filter <- reactiveVal(NULL) # active species filter (list)
+  active_feature <- reactiveVal(NULL) # active polygon
   selected_feature <- reactiveVal(NULL)
-  taxa_filter <- reactiveVal(NULL)
 
-  observeEvent(input$chat_user_input, {
-    taxa_selected <- txt_to_taxa(input$chat_user_input)
-    #print(taxa_selected)
-    taxa_filter(taxa_selected)
-    chat_append("chat", "done")
-  })
+  # Waterfall strategy to determine feature
+  get_active_feature <- function(input) {
+    gdf <- active_feature()
+
+    if (is_empty(gdf)) {
+      print("No feature selected, checking for drawing")
+      gdf <- get_drawn_features(maplibre_proxy("map"))
+    }
+    if (is_empty(gdf)) {
+      print("No drawing found, checking geocoder")
+      gdf <- geocoder_to_gdf(input$map_geocoder)
+    }
+    if (is_empty(gdf)) {
+      print("No geocoder, getting current bbox")
+      bbox <- input$map_bbox
+      print(bbox)
+      if (!is.null(bbox)) {
+        gdf <- get_polygon_bbox(bbox)
+      }
+    }
+
+    if (is_empty(gdf)) {
+      warning("No selection found, using default!")
+      return(spData::us_states)
+    }
+
+    gdf
+  }
+
   # Set up the map:
   output$map <- renderMaplibre({
     m <- mapgl::maplibre(
-      zoom = 1,
+      zoom = 2,
       center = c(-80, 20),
       maxZoom = input$max_zoom
     )
@@ -138,7 +161,7 @@ server <- function(input, output, session) {
     m |> add_countries()
   })
 
-  # React to layer selection
+  # Update map to show selected layer (polygons)
   observeEvent(input$layer_selection, {
     proxy <- maplibre_proxy("map")
 
@@ -160,7 +183,25 @@ server <- function(input, output, session) {
     proxy |> set_filter(input$layer_selection, layer_filter())
   })
 
-  # React to selected feature
+  # Observe chat input
+  observeEvent(input$chat_user_input, {
+    taxa_selected <- txt_to_taxa(input$chat_user_input)
+    chat_append("chat", "done")
+
+    # optionally - store the selection as global variable for future reactions
+    taxa_filter(taxa_selected)
+
+    # we can react right away, computing richness and updating map
+    gdf <- get_richness(
+      poly = get_active_feature(input),
+      zoom = as.integer(input$map_zoom),
+      taxa_selections = taxa_selected
+    )
+    maplibre_proxy("map") |>
+      add_richness(gdf)
+  })
+
+  # Zoom into selected feature, move down a layer, show resulting child features
   observeEvent(input$map_feature_click, {
     # NOTE: This reacts to drawing features too
 
@@ -185,14 +226,6 @@ server <- function(input, output, session) {
         return()
       }
 
-      # record info about currently selected feature
-      selected_feature(list(
-        name = name,
-        layer = x$layer,
-        config = config,
-        properties = x$properties
-      ))
-
       # Set the filter to focus on the clicked feature only
       layer_filter(list(
         "==",
@@ -211,60 +244,31 @@ server <- function(input, output, session) {
         selected = config$next_layer
       )
 
-      # Optional logging to console
-      print(paste(
-        "Activating",
-        config$next_layer,
-        "and filtering",
-        config$filter_column,
-        "=",
-        selected
-      ))
+      lazy_gdf <- activate_from_config(x$properties$id, config)
+      active_feature(lazy_gdf) # can a lazy feature be global var?
     }
   })
 
-  observeEvent(input$get_richness, {
-    # do nothing if no feature is selected?  Alternately grab screen?
-    x <- selected_feature()
-    if (is.null(x)) {
-      warning("select a feature first")
-      return()
-    }
-
-    # selected_feature() must return these. make this more robust
-    id <- x$properties$id
-    zoom <- as.integer(input$map_zoom)
-    poly <- open_dataset(x$config$parquet)
-
-    # FIXME abstract this into selected_feature() behavior.
-    if ("id" %in% colnames(poly)) {
-      poly <- poly |>
-        filter(.data[["id"]] == !!id)
-    }
-    if ("geometry" %in% colnames(poly)) {
-      poly <- poly |> rename(geom = geometry)
-    }
-
-    selected_taxa <- taxa_filter()
-
-    print(selected_taxa)
+  #logging helper
+  print_selections <- function() {
     print(paste(
       "Computing biodiversity for",
-      x$name,
+      digest::digest(active_feature()),
       "at zoom",
-      zoom,
+      as.integer(input$map_zoom),
       "for taxa:",
-      paste(selected_taxa, collapse = ":")
+      paste(taxa_filter(), collapse = ":")
     ))
+  }
+
+  observeEvent(input$get_richness, {
     gdf <- get_richness(
-      poly = poly,
-      zoom = zoom,
-      taxa_selections = selected_taxa
+      poly = get_active_feature(input),
+      zoom = as.integer(input$map_zoom),
+      taxa_selections = taxa_filter()
     )
 
-    print(paste(nrow(gdf), "features"))
     maplibre_proxy("map") |>
-      clear_layer(x$config$next_layer) |>
       add_richness(gdf)
   })
 
@@ -276,34 +280,24 @@ server <- function(input, output, session) {
   observeEvent(input$get_features, {
     print("Extracting drawn features")
 
-    drawn_features <- get_drawn_features(maplibre_proxy("map"))
-    print(drawn_features)
+    gdf <- get_drawn_features(maplibre_proxy("map"))
+    active_feature(gdf)
+    print(gdf)
   })
 
   observeEvent(input$current_bbox, {
     gdf <- get_polygon_bbox(input$map_bbox)
-    activate_polygon(gdf, name = "gdf")
-    # Should we grab polygons from active layer inside bbox?
-    # Could allow for better cache behavior
+    active_feature(gdf)
+    # Should we grab polygons from active layer inside bbox instead to cache?
   })
 
   # Ex: Get POINT data from geocoder (OSM)
-  # could then react by operating on hex or some containing polygon
   observeEvent(input$map_geocoder$result, {
-    temp <- tempfile(fileext = ".geojson")
-    output <- list(
-      type = "FeatureCollection",
-      features = input$map_geocoder$result$features
-    )
-    jsonlite::write_json(
-      output,
-      temp,
-      auto_unbox = TRUE
-    )
-    geo <- sf::st_read(temp)
+    gdf <- geocoder_to_gdf(input$map_geocoder)
+    # active_feature(gdf)
 
-    # get parent polygon from active layer via duckdbfs st_contains
-    print(geo)
+    # Get value of various layers based on containing hex of given zoom
+    print(gdf)
   })
 
   observeEvent(input$clear_richness, {
@@ -312,7 +306,13 @@ server <- function(input, output, session) {
 
   # Manual taxonomic controls
   observeEvent(taxa_selections$filter_trigger(), {
-    taxa_filter(taxa_selections$selections())
+    gdf <- get_richness(
+      poly = get_active_feature(input),
+      zoom = as.integer(input$map_zoom),
+      taxa_selections = taxa_selections$selections()
+    )
+    maplibre_proxy("map") |>
+      add_richness(gdf)
   })
 
   # Toggle draw controls

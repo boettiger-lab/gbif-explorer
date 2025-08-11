@@ -150,7 +150,7 @@ taxonomicSelectorServer <- function(id) {
     })
 
     # Filter button action - return a reactive that signals when to apply filter
-    filter_trigger <- reactiveVal(0)
+    filter_trigger <- reactiveVal(NULL)
     observeEvent(input$apply_filter, {
       filter_trigger(filter_trigger() + 1)
     })

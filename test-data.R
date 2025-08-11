@@ -17,7 +17,8 @@ poly <- open_dataset(
   select(id, division_id, geom = geometry)
 
 
-
+z = sf::st_sf(sf::st_as_sfc(st_bbox(c(xmin = 180, ymin = -89.99, xmax = 180, ymax = 89.99), crs=4326)))
+get_h3_aoi(z)
 
 
 dest <- glue::glue("s3://public-data/cache/biodiversity/nevada-all-z5-v1.h3j")
