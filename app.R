@@ -31,6 +31,7 @@ ui <- page_sidebar(
   shinybusy::add_busy_spinner("fading-circle"),
 
   sidebar = sidebar(
+    width = 300,
     card(
       card_header("Areas"),
       radioButtons(
@@ -52,23 +53,25 @@ ui <- page_sidebar(
     # Move states, countries to PMTiles Overture layers
     # Add support for filters
 
-  
-
     card(
       card_header("Biodiversity"),
       chat_ui("chat", placeholder = "hummingbirds"),
       actionLink("get_richness", "get sp richness"),
       actionLink("clear_richness", "🧹")
     ),
-    taxonomicSelectorCard(
-      "taxa_selector",
-      "Select Taxa",
-      include_reset = TRUE
-    ),
 
     br(),
 
     accordion(
+      accordion_panel(
+        "Taxa selector",
+        taxonomicSelectorCard(
+          "taxa_selector",
+          "Select Taxa",
+          include_reset = TRUE
+        ),
+        open = FALSE
+      ),
       accordion_panel(
         "Controls",
         input_switch("toggle_controls", "map controls", value = TRUE),
@@ -105,9 +108,6 @@ server <- function(input, output, session) {
   selected_feature <- reactiveVal(NULL)
   taxa_filter <- reactiveVal(NULL)
 
-  observeEvent(taxa_selections$filter_trigger(), {
-    taxa_filter(taxa_selections$selections())
-  })
   observeEvent(input$chat_user_input, {
     taxa_selected <- txt_to_taxa(input$chat_user_input)
     #print(taxa_selected)
@@ -281,20 +281,8 @@ server <- function(input, output, session) {
   })
 
   observeEvent(input$current_bbox, {
-    bbox <- sf::st_bbox(unlist(input$map_bbox), crs = 4326)
-    print("current bbox:")
-    gdf <- st_sf(geometry = st_as_sfc(st_bbox(bbox)))
-    print(gdf)
-    unlink(current_drawing_parquet)
-    gdf |> st_write(current_drawing_parquet)
-
-    selected_feature(list(
-      name = "bbox",
-      layer = "current_drawing",
-      config = list(parquet = current_drawing_parquet),
-      properties = list(id = "current_drawing")
-    ))
-
+    gdf <- get_polygon_bbox(input$map_bbox)
+    activate_polygon(gdf, name = "gdf")
     # Should we grab polygons from active layer inside bbox?
     # Could allow for better cache behavior
   })
@@ -321,6 +309,12 @@ server <- function(input, output, session) {
   observeEvent(input$clear_richness, {
     maplibre_proxy("map") |> clear_layer("richness")
   })
+
+  # Manual taxonomic controls
+  observeEvent(taxa_selections$filter_trigger(), {
+    taxa_filter(taxa_selections$selections())
+  })
+
   # Toggle draw controls
   observeEvent(input$toggle_controls, {
     proxy <- maplibre_proxy("map") |> clear_controls()

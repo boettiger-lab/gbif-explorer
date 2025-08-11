@@ -121,3 +121,29 @@ get_richness <- function(
   print(timer)
   gbif
 }
+
+
+activate_polygon <- function(
+  gdf,
+  name = "current",
+  layer = "current",
+  current_drawing_parquet = file.path(tempdir(), "current_drawing.geojson")
+) {
+  if ("geometry" %in% colnames(gdf)) {
+    gdf <- gdf |> rename(geom = geometry)
+  }
+  unlink(current_drawing_parquet) # i.e. overwrite
+  gdf |> st_write(current_drawing_parquet)
+
+  selected_feature(list(
+    name = "bbox",
+    layer = "current_drawing",
+    config = list(parquet = current_drawing_parquet),
+    properties = list(id = name)
+  ))
+}
+
+get_polygon_bbox <- function(bbox) {
+  bbox <- sf::st_bbox(unlist(bbox), crs = 4326)
+  gdf <- st_sf(geometry = st_as_sfc(st_bbox(bbox)))
+}
