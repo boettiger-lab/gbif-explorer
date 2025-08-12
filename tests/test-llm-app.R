@@ -17,7 +17,7 @@ server <- function(input, output, session) {
       htmltools::htmlEscape(input$chat_user_input),
       "</blockquote>"
     )
-    chat_append("chat", NULL)
+    chat_append("chat", "")
   })
 }
 

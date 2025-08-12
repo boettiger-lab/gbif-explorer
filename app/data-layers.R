@@ -112,9 +112,8 @@ add_richness_2d <- function(map, gdf) {
 }
 
 
-add_hillshade <- function(
+add_hillshade_source <- function(
   map,
-  hillshade = TRUE,
   key = Sys.getenv("MAPTILER_API_KEY")
 ) {
   map <- map |>
@@ -130,26 +129,33 @@ add_hillshade <- function(
         "https://api.maptiler.com/tiles/terrain-rgb-v2/tiles.json?key={key}"
       ),
       tilesize = 256
-    ) |>
-    add_raster_layer(id = "natgeo", source = "natgeo")
+    )
+  map
+}
 
-  if (hillshade) {
-    map <- map |>
-      add_layer(
-        id = "hills",
-        type = "hillshade",
-        source = "hillshadeSource",
-        "layout" = list(
-          "visibility" = "visible"
-        ),
-        "paint" = list(
-          "hillshade-shadow-color" = "#473B24"
-        )
+add_hillshade <- function(
+  map,
+  terrain = FALSE,
+  exaggeration = 1,
+  key = Sys.getenv("MAPTILER_API_KEY")
+) {
+  map <- map |>
+    add_layer(
+      id = "hills",
+      type = "hillshade",
+      source = "hillshadeSource",
+      "layout" = list(
+        "visibility" = "visible"
+      ),
+      "paint" = list(
+        "hillshade-shadow-color" = "#473B24"
       )
-  }
-  if (FALSE) {
+    )
+
+  if (terrain) {
     # makes map very slow!
-    map <- map |> set_terrain(source = "hillshadeSource", exaggeration = 1)
+    map <- map |>
+      set_terrain(source = "hillshadeSource", exaggeration = exaggeration)
   }
 
   map

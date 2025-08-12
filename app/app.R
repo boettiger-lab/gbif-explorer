@@ -36,6 +36,7 @@ ui <- page_sidebar(
       accordion(
         accordion_panel(
           "Area selector",
+          p("Click on a highlighted region to select."),
           radioButtons(
             "layer_selection",
             NULL,
@@ -54,9 +55,6 @@ ui <- page_sidebar(
         )
       )
     ),
-    #card(card_header("filters"), actionLink("clear_filters", "🧹"), ),
-    # Move states, countries to PMTiles Overture layers
-    # Add support for filters
 
     card(
       card_header("Biodiversity"),
@@ -68,6 +66,23 @@ ui <- page_sidebar(
 
     accordion(
       accordion_panel(
+        "Controls",
+        input_switch("hillshade_basemap", "Hillshade Basemap", value = FALSE),
+        input_switch("toggle_controls", "map controls", value = TRUE),
+        # actionButton("get_features", "Get drawing"),
+        # actionButton("current_bbox", "Get screen"),
+        sliderInput(
+          "max_zoom",
+          "Max Zoom Level",
+          min = 1,
+          max = 15,
+          value = 9,
+          step = 1
+        ),
+        # colourInput("color", "Set layer color", value = "blue"),
+        open = FALSE
+      ),
+      accordion_panel(
         "Taxa selector",
         taxonomicSelectorCard(
           "taxa_selector",
@@ -76,23 +91,7 @@ ui <- page_sidebar(
         ),
         open = FALSE
       ),
-      accordion_panel(
-        "Controls",
-        input_switch("hillshade_basemap", "Hillshade Basemap", value = TRUE),
-        input_switch("toggle_controls", "map controls", value = TRUE),
-        actionButton("get_features", "Get drawing"),
-        actionButton("current_bbox", "Get screen"),
-        sliderInput(
-          "max_zoom",
-          "Max Zoom Level",
-          min = 1,
-          max = 15,
-          value = 8,
-          step = 1
-        ),
-        colourInput("color", "Set layer color", value = "blue"),
-        open = FALSE
-      )
+      open = FALSE
     ),
   ),
   card(
@@ -155,12 +154,8 @@ server <- function(input, output, session) {
       add_pmtiles_source("tract_source", tract) |>
       add_pmtiles_source("county_source", counties) |>
       add_pmtiles_source("region_source", regions) |>
-      add_pmtiles_source("country_source", countries)
-
-    if (input$hillshade_basemap) {
-      #print("hillshade")
-      m <- m |> add_hillshade()
-    }
+      add_pmtiles_source("country_source", countries) |>
+      add_hillshade_source()
 
     m <- m |>
       add_fullscreen_control() |>
@@ -168,8 +163,17 @@ server <- function(input, output, session) {
       add_draw_control() |>
       add_geocoder_control()
 
-    # Add any layer you want to be on by default
-    # m |> add_countries()
+    m <- m |> add_raster_layer(id = "natgeo", source = "natgeo")
+    m
+  })
+
+  observeEvent(input$hillshade_basemap, {
+    if (input$hillshade_basemap) {
+      maplibre_proxy("map") |>
+        add_hillshade()
+    } else {
+      maplibre_proxy("map") |> clear_layer("hills")
+    }
   })
 
   # Update map to show selected layer (polygons)
@@ -197,7 +201,11 @@ server <- function(input, output, session) {
   # Observe chat input
   observeEvent(input$chat_user_input, {
     taxa_selected <- txt_to_taxa(input$chat_user_input)
-    chat_append("chat", "done")
+    resp <- paste(
+      "selected:\n",
+      jsonlite::toJSON(taxa_selected, pretty = TRUE, auto_unbox = TRUE)
+    )
+    chat_append("chat", resp)
     chat_clear("chat")
 
     # optionally - store the selection as global variable for future reactions
