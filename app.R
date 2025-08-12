@@ -33,21 +33,26 @@ ui <- page_sidebar(
   sidebar = sidebar(
     width = 300,
     card(
-      card_header("Area selector"),
-      radioButtons(
-        "layer_selection",
-        NULL,
-        choices = list(
-          "None" = "none",
-          "Countries" = "country_layer",
-          "States" = "region_layer",
-          "Counties" = "county_layer",
-          "Tracts" = "tract_layer"
-          #         "Protected Areas" = "park_layer",
-          #         "US fires" = "fire_layer",
-        ),
-        selected = "none"
-      ),
+      accordion(
+        accordion_panel(
+          "Area selector",
+          radioButtons(
+            "layer_selection",
+            NULL,
+            choices = list(
+              "Off" = "none",
+              "Countries" = "country_layer",
+              "States" = "region_layer",
+              "Counties" = "county_layer",
+              "Tracts" = "tract_layer"
+              #         "Protected Areas" = "park_layer",
+              #         "US fires" = "fire_layer",
+            ),
+            selected = "none"
+          ),
+          p("")
+        )
+      )
     ),
     #card(card_header("filters"), actionLink("clear_filters", "🧹"), ),
     # Move states, countries to PMTiles Overture layers
@@ -153,6 +158,7 @@ server <- function(input, output, session) {
       add_pmtiles_source("country_source", countries)
 
     if (input$hillshade_basemap) {
+      #print("hillshade")
       m <- m |> add_hillshade()
     }
 
@@ -163,7 +169,7 @@ server <- function(input, output, session) {
       add_geocoder_control()
 
     # Add any layer you want to be on by default
-    m |> add_countries()
+    # m |> add_countries()
   })
 
   # Update map to show selected layer (polygons)

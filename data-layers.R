@@ -12,7 +12,7 @@ add_countries <- function(map) {
       id = "country_layer",
       source = "country_source",
       source_layer = "countries",
-      fill_opacity = 0.1,
+      fill_opacity = 0.15,
       fill_color = "purple",
       tooltip = mapgl::concat(
         "Name: ",
@@ -28,7 +28,7 @@ add_regions <- function(map) {
       id = "region_layer",
       source = "region_source",
       source_layer = "regions",
-      fill_opacity = 0.1,
+      fill_opacity = 0.15,
       fill_color = "purple",
       tooltip = mapgl::concat(
         "Name: ",
@@ -44,7 +44,7 @@ add_counties <- function(map) {
       id = "county_layer",
       source = "county_source",
       source_layer = "counties",
-      fill_opacity = 0.1,
+      fill_opacity = 0.15,
       fill_color = "purple",
       tooltip = mapgl::concat(
         "Name: ",
@@ -66,7 +66,7 @@ add_tracts <- function(map) {
       id = "tract_layer",
       source = "tract_source",
       source_layer = tract_layer_name,
-      fill_opacity = 0.1,
+      fill_opacity = 0.15,
       fill_color = "purple",
       tooltip = mapgl::concat(
         "County: ",
@@ -117,7 +117,7 @@ add_hillshade <- function(
   hillshade = TRUE,
   key = Sys.getenv("MAPTILER_API_KEY")
 ) {
-  map |>
+  map <- map |>
     add_raster_source(
       id = "natgeo",
       tiles = "https://server.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer/tile/{z}/{y}/{x}.png",
