@@ -1,5 +1,21 @@
-# assumes geom column is "geom"
+sf_to_lazy <- function(gdf) {
+  if (inherits(gdf, "sf")) {
+    tmp = file.path(tempdir(), "current_drawing.fgb")
+    unlink(tmp) # i.e. overwrite
+    # do we want to write with sf? as geojson?
+    sf::st_write(gdf, tmp)
+    gdf <- duckdbfs::open_dataset(tmp)
+  }
+  gdf
+}
+
+# FIXME Debug testing:
+# Can get_h3_aoi return no hexes, e.g. point geom,
+
 get_h3_aoi <- function(aoi, precision = 6L) {
+  # if aoi is in-memory, move to duckdb first
+
+  aoi <- sf_to_lazy(aoi)
   index <- as.integer(0L) # index for h0-partitioned data
   duckdbfs::load_h3()
 
@@ -7,6 +23,15 @@ get_h3_aoi <- function(aoi, precision = 6L) {
   precision <- as.integer(precision)
 
   res <- paste0("h", precision)
+
+  # assumes geom column is "geom"
+  if ("geometry" %in% colnames(aoi)) {
+    aoi <- aoi |> rename(geom = geometry)
+  }
+
+  # CHECK IF POINT GEOM, JUST RETURN hex of desired precision at point!!
+  # Do not call h3_polygon_wkt...
+
   # multipolygon dump may not be needed for draw tools.
   h3_aoi <- aoi |>
     # dump multi-polygons to polygons
@@ -27,8 +52,11 @@ get_h3_aoi <- function(aoi, precision = 6L) {
       h3id = h3_h3_to_string(h3id)
     ) |>
     mutate(h0 = toupper(h0), h3id = toupper(h3id)) |>
-    select(h0, h3id) |>
-    as_view("h3_aoi")
+    select(h0, h3id)
+
+  h3_aoi |> as_view("h3_aoi")
+
+  h3_aoi
 }
 
 
@@ -36,6 +64,10 @@ open_gbif_partition <- function(
   subset,
   server = Sys.getenv("AWS_PUBLIC_ENDPOINT", Sys.getenv("AWS_S3_ENDPOINT"))
 ) {
+  if (length(subset) < 1) {
+    return(open_dataset(glue("s3://public-gbif/hex/"), tblname = "gbif"))
+  }
+
   urls <- paste0(
     glue("https://{server}/public-gbif/hex/h0="),
     subset,
@@ -123,27 +155,61 @@ get_richness <- function(
 }
 
 
-activate_polygon <- function(
-  gdf,
-  name = "current",
-  layer = "current",
-  current_drawing_parquet = file.path(tempdir(), "current_drawing.geojson")
-) {
-  if ("geometry" %in% colnames(gdf)) {
-    gdf <- gdf |> rename(geom = geometry)
-  }
-  unlink(current_drawing_parquet) # i.e. overwrite
-  gdf |> st_write(current_drawing_parquet)
-
-  selected_feature(list(
-    name = "bbox",
-    layer = "current_drawing",
-    config = list(parquet = current_drawing_parquet),
-    properties = list(id = name)
-  ))
-}
-
 get_polygon_bbox <- function(bbox) {
+  # safe return
+  # bbox$xmin <- max(bbox$xmin, -180)
+  # bbox$xmax <- min(bbox$xmax, 180)
+  # bbox$ymin <- max(bbox$ymin, -89.99)
+  # bbox$ymax <- min(bbox$ymax, 89.99)
+
   bbox <- sf::st_bbox(unlist(bbox), crs = 4326)
   gdf <- st_sf(geometry = st_as_sfc(st_bbox(bbox)))
+  gdf
+}
+
+# Returns results of geocoder as gdf (sf object) with POINT geometry
+geocoder_to_gdf <- function(map_geocoder) {
+  print(map_geocoder)
+  if (is.null(map_geocoder)) {
+    return(NULL)
+  }
+  temp <- tempfile(fileext = ".geojson")
+  output <- list(
+    type = "FeatureCollection",
+    features = map_geocoder$result$features
+  )
+  jsonlite::write_json(
+    output,
+    temp,
+    auto_unbox = TRUE
+  )
+  gdf <- sf::st_read(temp)
+  gdf
+}
+
+# is it okay for this to be lazy?
+activate_from_config <- function(id, config) {
+  poly <- duckdbfs::open_dataset(config$parquet)
+
+  # FIXME abstract this into selected_feature() behavior.
+  if ("id" %in% colnames(poly)) {
+    poly <- poly |>
+      dplyr::filter(.data[["id"]] == !!id)
+  }
+
+  return(poly)
+}
+
+is_empty <- function(df) {
+  if (is.null(df)) {
+    return(TRUE)
+  }
+  if (inherits(df, "tbl_lazy")) {
+    df <- df |> head(1) |> dplyr::collect()
+  }
+  if (nrow(df) < 1) {
+    return(TRUE)
+  }
+
+  FALSE
 }

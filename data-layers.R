@@ -12,7 +12,7 @@ add_countries <- function(map) {
       id = "country_layer",
       source = "country_source",
       source_layer = "countries",
-      fill_opacity = 0.2,
+      fill_opacity = 0.1,
       fill_color = "purple",
       tooltip = mapgl::concat(
         "Name: ",
@@ -28,7 +28,7 @@ add_regions <- function(map) {
       id = "region_layer",
       source = "region_source",
       source_layer = "regions",
-      fill_opacity = 0.2,
+      fill_opacity = 0.1,
       fill_color = "purple",
       tooltip = mapgl::concat(
         "Name: ",
@@ -44,7 +44,7 @@ add_counties <- function(map) {
       id = "county_layer",
       source = "county_source",
       source_layer = "counties",
-      fill_opacity = 0.2,
+      fill_opacity = 0.1,
       fill_color = "purple",
       tooltip = mapgl::concat(
         "Name: ",
@@ -66,7 +66,7 @@ add_tracts <- function(map) {
       id = "tract_layer",
       source = "tract_source",
       source_layer = tract_layer_name,
-      fill_opacity = 0.2,
+      fill_opacity = 0.1,
       fill_color = "purple",
       tooltip = mapgl::concat(
         "County: ",
@@ -157,9 +157,7 @@ add_hillshade <- function(
 
 # lazy data.frame versions
 
-current_drawing_parquet <- file.path(tempdir(), "current_drawing.geojson")
-
-
+current_drawing_parquet <- file.path(tempdir(), "current_drawing.parquet")
 # Define layer configuration
 layer_config <- list(
   country_layer = list(
@@ -204,6 +202,7 @@ layer_config <- list(
   current_drawing = list(
     clear_filter = FALSE,
     parquet = current_drawing_parquet
-  )
+  ),
+  none = list(add_layer = function(map, ...) map, clear_filter = TRUE)
 )
 # Should richness be included?
