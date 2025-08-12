@@ -198,6 +198,7 @@ server <- function(input, output, session) {
   observeEvent(input$chat_user_input, {
     taxa_selected <- txt_to_taxa(input$chat_user_input)
     chat_append("chat", "done")
+    chat_clear("chat")
 
     # optionally - store the selection as global variable for future reactions
     taxa_filter(taxa_selected)

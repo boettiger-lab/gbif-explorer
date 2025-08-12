@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    haproxy.org/timeout-server: "300s"
+    haproxy.org/timeout-client: "300s"
+    haproxy.org/timeout-connect: "30s"
+    haproxy.org/timeout-http-request: "300s"
+  name: inat-ingress
+spec:
+  ingressClassName: haproxy
+  rules:
+  - host: gbif.nrp-nautilus.io
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: gbif
+            port:
+              number: 8080
+  tls:
+  - hosts:
+    - gbif.nrp-nautilus.io

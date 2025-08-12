@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gbif
+  labels:
+    k8s-app: gbif
+spec:
+  containers:
+  - name: gbif
+    image: ghcr.io/boettiger-lab/gbif-explorer
+    imagePullPolicy: Always
+    env:
+    
+    - name: AWS_ACCESS_KEY_ID
+      valueFrom:
+        secretKeyRef:
+          name: aws
+          key: AWS_ACCESS_KEY_ID
+    - name: AWS_SECRET_ACCESS_KEY
+      valueFrom:
+        secretKeyRef:
+          name: aws
+          key: AWS_SECRET_ACCESS_KEY
+    - name: AWS_S3_ENDPOINT
+      value: "rook-ceph-rgw-nautiluss3.rook"
+    - name: AWS_PUBLIC_ENDPOINT
+      value: "s3-west.nrp-nautilus.io"
+    - name: AWS_HTTPS
+      value: "false"
+    - name: AWS_VIRTUAL_HOSTING
+      value: "FALSE"
+    - name: NRP_API_KEY
+      valueFrom:
+        secretKeyRef:
+          name: nrp-api-key
+          key: NRP_API_KEY
+    - name: MAPTILER_API_KEY
+      valueFrom:
+        secretKeyRef:
+          name: maptiler-api-key
+          key: MAPTILER_API_KEY
+    resources:
+      requests:
+        cpu: 8
+        memory: 8Gi
+      limits:
+        cpu: 8
+        memory: 8Gi
+
+

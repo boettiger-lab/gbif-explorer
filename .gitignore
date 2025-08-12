@@ -55,3 +55,4 @@ rsconnect/
 *.pmtiles
 Rplots.pdf
 .tmp/
+kubernetes/set-secrets.sh

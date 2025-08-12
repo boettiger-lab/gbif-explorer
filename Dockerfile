@@ -3,19 +3,22 @@ FROM rocker/geospatial:latest
 WORKDIR /code
 
 RUN install2.r --error \
-    bench \
-    bsicons \
-    bslib \
-    duckdbfs \
-    fontawesome \
-    gt \
-    markdown \
-    shiny \
-    shinybusy \
-    shinychat \
-    tidyverse
+  bench \
+  bsicons \
+  bslib \
+  duckdbfs \
+  fontawesome \
+  gt \
+  markdown \
+  shiny \
+  shinybusy \
+  shinychat \
+  tidyverse \
+  mapgl \
+  ellmer \
+  conflicted
 
-RUN installGithub.r cboettig/mapgl tidyverse/ellmer boettiger-lab/duckdb.agent cboettig/duckdbfs
+
 
 COPY . .
 

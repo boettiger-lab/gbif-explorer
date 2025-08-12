@@ -1,0 +1,18 @@
+name: Binder Image
+on:
+  workflow_dispatch: null
+  push: null
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions: write-all
+    steps:
+      - uses: actions/checkout@v3
+      - name: Publish to GitHub Container Registry
+        uses: elgohr/Publish-Docker-Github-Action@v5
+        with:
+          name: boettiger-lab/inat-ranges
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: ghcr.io
+
