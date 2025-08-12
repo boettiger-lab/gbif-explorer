@@ -2,6 +2,7 @@ FROM rocker/geospatial:latest
 
 WORKDIR /code
 
+RUN apt-get update && apt-get -y install glances
 RUN install2.r --error \
   bench \
   bsicons \

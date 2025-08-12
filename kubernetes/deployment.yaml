@@ -50,9 +50,9 @@ spec:
         resources:
           requests:
             cpu: 8
-            memory: 8Gi
+            memory: 16Gi
           limits:
             cpu: 8
-            memory: 8Gi
+            memory: 16Gi
 
 
