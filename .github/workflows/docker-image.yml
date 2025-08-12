@@ -11,7 +11,7 @@ jobs:
       - name: Publish to GitHub Container Registry
         uses: elgohr/Publish-Docker-Github-Action@v5
         with:
-          name: boettiger-lab/inat-ranges
+          name: ${{github.repository }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
           registry: ghcr.io
