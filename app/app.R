@@ -25,7 +25,7 @@ source("llm-gbif.R")
 
 # Required for h3j write
 duckdb_secrets()
-
+duckdb_config(threads = 100)
 ui <- page_sidebar(
   title = "Interactive feature selection",
   shinybusy::add_busy_spinner("fading-circle"),
