@@ -74,6 +74,7 @@ ui <- page_sidebar(
       ),
       accordion_panel(
         "Controls",
+        input_switch("hillshade_basemap", "Hillshade Basemap", value = TRUE),
         input_switch("toggle_controls", "map controls", value = TRUE),
         actionButton("get_features", "Get drawing"),
         actionButton("current_bbox", "Get screen"),
@@ -127,6 +128,10 @@ server <- function(input, output, session) {
       add_pmtiles_source("county_source", counties) |>
       add_pmtiles_source("region_source", regions) |>
       add_pmtiles_source("country_source", countries)
+
+    if (input$hillshade_basemap) {
+      m <- m |> add_hillshade()
+    }
 
     m <- m |>
       add_fullscreen_control() |>

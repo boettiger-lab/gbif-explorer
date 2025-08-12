@@ -111,9 +111,55 @@ add_richness_2d <- function(map, gdf) {
     )
 }
 
+
+add_hillshade <- function(
+  map,
+  hillshade = TRUE,
+  key = Sys.getenv("MAPTILER_API_KEY")
+) {
+  map |>
+    add_raster_source(
+      id = "natgeo",
+      tiles = "https://server.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer/tile/{z}/{y}/{x}.png",
+      tileSize = 256,
+      maxzoom = 19
+    ) |>
+    add_raster_dem_source(
+      id = "hillshadeSource",
+      glue::glue(
+        "https://api.maptiler.com/tiles/terrain-rgb-v2/tiles.json?key={key}"
+      ),
+      tilesize = 256
+    ) |>
+    add_raster_layer(id = "natgeo", source = "natgeo")
+
+  if (hillshade) {
+    map <- map |>
+      add_layer(
+        id = "hills",
+        type = "hillshade",
+        source = "hillshadeSource",
+        "layout" = list(
+          "visibility" = "visible"
+        ),
+        "paint" = list(
+          "hillshade-shadow-color" = "#473B24"
+        )
+      )
+  }
+  if (FALSE) {
+    # makes map very slow!
+    map <- map |> set_terrain(source = "hillshadeSource", exaggeration = 1)
+  }
+
+  map
+}
+
 # lazy data.frame versions
 
 current_drawing_parquet <- file.path(tempdir(), "current_drawing.geojson")
+
+
 # Define layer configuration
 layer_config <- list(
   country_layer = list(
