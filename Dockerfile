@@ -6,19 +6,18 @@ RUN install2.r --error \
   bench \
   bsicons \
   bslib \
+  colourpicker \
+  conflicted \
   duckdbfs \
+  ellmer \
   fontawesome \
   gt \
+  mapgl \
   markdown \
   shiny \
   shinybusy \
   shinychat \
-  tidyverse \
-  mapgl \
-  ellmer \
-  conflicted
-
-
+  tidyverse
 
 COPY app/ .
 
