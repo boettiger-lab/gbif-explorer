@@ -38,15 +38,15 @@ ui <- page_sidebar(
         "layer_selection",
         NULL,
         choices = list(
+          "None" = "none",
           "Countries" = "country_layer",
           "States" = "region_layer",
           "Counties" = "county_layer",
-          "Tracts" = "tract_layer",
+          "Tracts" = "tract_layer"
           #         "Protected Areas" = "park_layer",
           #         "US fires" = "fire_layer",
-          "None" = "none"
         ),
-        selected = "country_layer"
+        selected = "none"
       ),
     ),
     #card(card_header("filters"), actionLink("clear_filters", "🧹"), ),
