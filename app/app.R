@@ -8,26 +8,29 @@ library(shinybusy)
 library(bslib)
 library(colourpicker)
 library(markdown)
-
+library(memoise)
 library(sf)
 library(dplyr)
 library(duckdbfs)
-
 library(mapgl)
 library(stringr)
 library(jsonlite)
 library(glue)
 source("data-layers.R")
 source("utils.R")
-source("taxa-filter.R")
 
 source("llm-gbif.R")
 
-# Required for h3j write
 duckdb_secrets()
 duckdb_config(threads = 100)
 ui <- page_sidebar(
-  title = "Interactive feature selection",
+  title = "Explore Global Biodiversity",
+  includeMarkdown(
+    "Activate the area selector to select specific regions (countries, states, counties, etc) by clicking on the map.  Or, use the draw tools to create any custom region.  Or simply zoom in to the desired region using scrolling or geocoder search.
+     Enter the species or taxonomic group of interest into the biodiversity search bar.
+    
+    "
+  ),
   shinybusy::add_busy_spinner("fading-circle"),
 
   sidebar = sidebar(
@@ -36,7 +39,6 @@ ui <- page_sidebar(
       accordion(
         accordion_panel(
           "Area selector",
-          p("Click on a highlighted region to select."),
           radioButtons(
             "layer_selection",
             NULL,
@@ -63,36 +65,19 @@ ui <- page_sidebar(
     ),
 
     br(),
-
-    accordion(
-      accordion_panel(
-        "Controls",
-        input_switch("hillshade_basemap", "Hillshade Basemap", value = FALSE),
-        input_switch("toggle_controls", "map controls", value = TRUE),
-        # actionButton("get_features", "Get drawing"),
-        # actionButton("current_bbox", "Get screen"),
-        sliderInput(
-          "max_zoom",
-          "Max Zoom Level",
-          min = 1,
-          max = 15,
-          value = 9,
-          step = 1
-        ),
-        # colourInput("color", "Set layer color", value = "blue"),
-        open = FALSE
+    input_switch("hillshade_basemap", "hillshade", value = FALSE),
+    input_switch("toggle_controls", "map controls", value = TRUE),
+    radioButtons(
+      "basemap",
+      "Basemap:",
+      choices = list(
+        "NatGeo" = "natgeo",
+        "light" = carto_style("voyager"),
+        "dark" = carto_style("dark-matter"),
+        "satellite" = maptiler_style("satellite")
       ),
-      accordion_panel(
-        "Taxa selector",
-        taxonomicSelectorCard(
-          "taxa_selector",
-          "Select Taxa",
-          include_reset = TRUE
-        ),
-        open = FALSE
-      ),
-      open = FALSE
-    ),
+      selected = "natgeo"
+    )
   ),
   card(
     full_screen = TRUE,
@@ -105,15 +90,13 @@ ui <- page_sidebar(
 )
 
 server <- function(input, output, session) {
-  taxa_selections <- taxonomicSelectorServer("taxa_selector")
-
   # Dynamic variables:
   layer_filter <- reactiveVal(NULL) # active layer filter (maplibre filter)
   taxa_filter <- reactiveVal(NULL) # active species filter (list)
   active_feature <- reactiveVal(NULL) # active polygon
   selected_feature <- reactiveVal(NULL)
 
-  # Waterfall strategy to determine feature
+  # Waterfall strategy to determine feature selection:
   get_active_feature <- function(input) {
     gdf <- active_feature()
 
@@ -145,9 +128,9 @@ server <- function(input, output, session) {
   # Set up the map:
   output$map <- renderMaplibre({
     m <- mapgl::maplibre(
-      zoom = 2,
-      center = c(-80, 20),
-      maxZoom = input$max_zoom
+      zoom = 3.5,
+      center = c(-100, 30),
+      maxZoom = 9
     )
 
     m <- m |>
@@ -201,12 +184,10 @@ server <- function(input, output, session) {
   # Observe chat input
   observeEvent(input$chat_user_input, {
     taxa_selected <- txt_to_taxa(input$chat_user_input)
-    resp <- paste(
-      "selected:\n",
-      jsonlite::toJSON(taxa_selected, pretty = TRUE, auto_unbox = TRUE)
-    )
+
+    resp <- bot_response(taxa_selected, input$map_zoom)
+    print(resp)
     chat_append("chat", resp)
-    chat_clear("chat")
 
     # optionally - store the selection as global variable for future reactions
     taxa_filter(taxa_selected)
@@ -217,22 +198,20 @@ server <- function(input, output, session) {
       zoom = as.integer(input$map_zoom),
       taxa_selections = taxa_selected
     )
+
+    chat_clear("chat")
+
     maplibre_proxy("map") |>
       add_richness(gdf)
   })
 
   # Zoom into selected feature, move down a layer, show resulting child features
   observeEvent(input$map_feature_click, {
-    # NOTE: This reacts to drawing features too
-
-    # Look up the configuration for the active layer.
     x <- input$map_feature_click
     config <- layer_config[[x$layer]]
-
     if (is.null(config)) {
       return()
     }
-
     name <- x$properties[[config$name_property]]
 
     # Filter next layer to the clicked feature
@@ -255,7 +234,7 @@ server <- function(input, output, session) {
 
       # fly_to, jump_to, or ease_to ?
       maplibre_proxy("map") |>
-        fly_to(zoom = input$map_zoom + 2, center = c(x$lng, x$lat))
+        fly_to(zoom = input$map_zoom + 1, center = c(x$lng, x$lat))
 
       # and activate child layer inside it
       updateRadioButtons(
@@ -264,6 +243,7 @@ server <- function(input, output, session) {
         selected = config$next_layer
       )
 
+      # Set this as the active selection
       lazy_gdf <- activate_from_config(x$properties$id, config)
       active_feature(lazy_gdf) # can a lazy feature be global var?
     }
@@ -296,43 +276,8 @@ server <- function(input, output, session) {
     maplibre_proxy("map") |> set_filter(input$layer_selection, NULL)
   })
 
-  # Ex Show a feature user has drawn on the map
-  observeEvent(input$get_features, {
-    print("Extracting drawn features")
-
-    gdf <- get_drawn_features(maplibre_proxy("map"))
-    active_feature(gdf)
-    print(gdf)
-  })
-
-  observeEvent(input$current_bbox, {
-    gdf <- get_polygon_bbox(input$map_bbox)
-    active_feature(gdf)
-    # Should we grab polygons from active layer inside bbox instead to cache?
-  })
-
-  # Ex: Get POINT data from geocoder (OSM)
-  observeEvent(input$map_geocoder$result, {
-    gdf <- geocoder_to_gdf(input$map_geocoder)
-    # active_feature(gdf)
-
-    # Get value of various layers based on containing hex of given zoom
-    print(gdf)
-  })
-
   observeEvent(input$clear_richness, {
     maplibre_proxy("map") |> clear_layer("richness")
-  })
-
-  # Manual taxonomic controls
-  observeEvent(taxa_selections$filter_trigger(), {
-    gdf <- get_richness(
-      poly = get_active_feature(input),
-      zoom = as.integer(input$map_zoom),
-      taxa_selections = taxa_selections$selections()
-    )
-    maplibre_proxy("map") |>
-      add_richness(gdf)
   })
 
   # Toggle draw controls
@@ -346,10 +291,14 @@ server <- function(input, output, session) {
         add_geocoder_control()
     }
   })
-  # Update the fill color
-  observeEvent(input$color, {
-    maplibre_proxy("map") |>
-      set_paint_property(input$layer_selection, "fill-color", input$color)
+
+  observeEvent(input$basemap, {
+    if (input$basemap == "natgeo") {
+      maplibre_proxy("map") |>
+        add_raster_layer(id = "natgeo", source = "natgeo")
+    } else {
+      maplibre_proxy("map") |> clear_layer("natgeo") |> set_style(input$basemap)
+    }
   })
 }
 

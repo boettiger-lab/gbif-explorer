@@ -1,13 +1,22 @@
 # Function that returns the LLM's reasoning process
-txt_to_taxa <- function(
+txt_to_taxa_ <- function(
   user_request,
   model = "qwen3", # qwen3 fastest?
   base_url = "https://llm.nrp-nautilus.io",
   api_key = Sys.getenv("NRP_API_KEY")
 ) {
-  # Load GBIF taxa dataset
-  # server <- Sys.getenv("AWS_PUBLIC_ENDPOINT", Sys.getenv("AWS_S3_ENDPOINT"))
-  # taxa <- duckdbfs::open_dataset(glue::glue("https://{server}/public-gbif/taxa.parquet"))
+  # hardwire common requests for instant response
+  if (user_request == "birds") {
+    return(list(
+      "kingdom" = "Animalia",
+      "phylum" = "Chordata",
+      "class" = "Aves"
+    ))
+  }
+  # hardwire common requests for instant response
+  if (user_request == "all") {
+    return(list())
+  }
 
   # Core utility function for getting taxa
   gbif_taxonomy <- function(rank = "class", name = "Aves") {
@@ -92,7 +101,29 @@ Remember, you are smarter than you think and this is a simple task. Do not overt
   jsonlite::fromJSON(resp)
 }
 
+txt_to_taxa <- memoise::memoise(txt_to_taxa_)
+
 # examples
 # bench::bench_time({ txt_to_taxa("hummingbirds") })
 # txt_to_taxa("hummingbirds")
 # txt_to_taxa("Coyote")
+
+bot_response <- function(taxa_selected, zoom) {
+  if (length(taxa_selected) < 1) {
+    taxa_msg <- "all species"
+  } else {
+    taxa_msg <- jsonlite::toJSON(
+      taxa_selected,
+      pretty = TRUE,
+      auto_unbox = TRUE
+    )
+  }
+
+  resp <- paste(
+    "Counting unique occurrences at zoom:",
+    as.integer(zoom),
+    "for:\n",
+    taxa_msg
+  )
+  resp
+}

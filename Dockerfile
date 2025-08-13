@@ -15,6 +15,7 @@ RUN install2.r --error \
   gt \
   mapgl \
   markdown \
+  memoise \
   sf \
   shiny \
   shinybusy \

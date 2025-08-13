@@ -13,9 +13,16 @@ sf_to_lazy <- function(gdf) {
 # Can get_h3_aoi return no hexes, e.g. point geom,
 
 get_h3_aoi <- function(aoi, precision = 6L) {
+  aoi <- sf_to_lazy(aoi) # can't memoise lazy
+
+  get_h3_aoi_(aoi, precision)
+}
+
+
+# Do we ever need disk cache for this?
+get_h3_aoi_ <- memoise::memoise(function(aoi, precision = 6L) {
   # if aoi is in-memory, move to duckdb first
 
-  aoi <- sf_to_lazy(aoi)
   index <- as.integer(0L) # index for h0-partitioned data
   duckdbfs::load_h3()
 
@@ -57,7 +64,7 @@ get_h3_aoi <- function(aoi, precision = 6L) {
   h3_aoi |> as_view("h3_aoi")
 
   h3_aoi
-}
+})
 
 
 open_gbif_partition <- function(
@@ -79,7 +86,6 @@ open_gbif_partition <- function(
 open_gbif_region <- function(
   poly_hexed,
   zoom,
-  cache = uuid::uuid(),
   server = Sys.getenv("AWS_PUBLIC_ENDPOINT", Sys.getenv("AWS_S3_ENDPOINT"))
 ) {
   subset <- poly_hexed |> distinct(h0) |> pull()
@@ -108,24 +114,26 @@ filter_gbif_taxa <- function(gbif, selections) {
   return(filtered_gbif)
 }
 
-
-get_richness <- function(
-  poly,
+## Memoise the slow stuff
+get_richness_ <- function(
+  poly_hexed,
   zoom,
   taxa_selections = list(),
-  cache = uuid::uuid(),
-  local_cache = tempfile("richness_calc", fileext = ".parquet"),
-  max_features = getOption("shiny_max_features", 20000L),
-  warning = TRUE,
-  server = Sys.getenv("AWS_PUBLIC_ENDPOINT", Sys.getenv("AWS_S3_ENDPOINT"))
+  server
 ) {
-  poly_hexed <- get_h3_aoi(poly, as.integer(zoom))
-
-  gbif <- open_gbif_region(poly_hexed, zoom, cache, server)
+  gbif <- open_gbif_region(poly_hexed, zoom, server)
   gbif <- filter_gbif_taxa(gbif, taxa_selections)
-
   index <- paste0("h", zoom)
-  timer <- bench::bench_time({
+
+  hash <- digest::digest(list(poly_hexed, zoom, server, taxa_selections))
+  richness_cache <- paste0(
+    "s3://public-data/gbif-cache/richness/",
+    hash,
+    fileext = ".parquet"
+  )
+
+  cache_exists <- TRUE #FIXME check s3
+  if (cache_exists) {
     gbif |>
       select(taxonkey, h3id = !!index) |>
       inner_join(poly_hexed, by = "h3id") |>
@@ -133,34 +141,54 @@ get_richness <- function(
       count(h3id) |>
       mutate(logn = log(n), value = logn / max(logn)) |>
       mutate(geom = h3_cell_to_boundary_wkt(h3id)) |>
-      write_dataset(local_cache)
+      write_dataset(richness_cache)
+  }
 
-    gbif <- open_dataset(local_cache)
+  richness_cache
+}
 
-    if (warning) {
-      n_features <- gbif |> count() |> pull(n)
-      if (n_features > max_features) {
-        warning(paste("returning only first", max_features, "of", n_features))
-      }
+get_richness <- function(
+  poly,
+  zoom,
+  taxa_selections = list(),
+  max_features = getOption("shiny_max_features", 20000L),
+  warning = TRUE,
+  server = Sys.getenv("AWS_PUBLIC_ENDPOINT", Sys.getenv("AWS_S3_ENDPOINT"))
+) {
+  ## This step is memoised (after materializing the poly)
+  poly_hexed <- get_h3_aoi(poly, as.integer(zoom))
+
+  richness_cache <- get_richness_(
+    poly_hexed,
+    zoom,
+    taxa_selections,
+    server
+  )
+
+  gbif <- open_dataset(richness_cache, recursive = FALSE)
+
+  if (warning) {
+    n_features <- gbif |> count() |> pull(n)
+    if (n_features > max_features) {
+      warning(paste("returning only first", max_features, "of", n_features))
     }
+  }
 
-    gbif <- gbif |>
-      head(max_features) |> # max number of features
-      collect() |>
-      st_as_sf(wkt = "geom", crs = 4326)
-  })
+  gbif <- gbif |>
+    head(max_features) |> # max number of features
+    collect() |>
+    st_as_sf(wkt = "geom", crs = 4326)
 
-  print(timer)
   gbif
 }
 
 
 get_polygon_bbox <- function(bbox) {
   # safe return
-  # bbox$xmin <- max(bbox$xmin, -180)
-  # bbox$xmax <- min(bbox$xmax, 180)
-  # bbox$ymin <- max(bbox$ymin, -89.99)
-  # bbox$ymax <- min(bbox$ymax, 89.99)
+  bbox$xmin <- max(bbox$xmin, -178)
+  bbox$xmax <- min(bbox$xmax, 178)
+  bbox$ymin <- max(bbox$ymin, -89.99)
+  bbox$ymax <- min(bbox$ymax, 89.99)
 
   bbox <- sf::st_bbox(unlist(bbox), crs = 4326)
   gdf <- st_sf(geometry = st_as_sfc(st_bbox(bbox)))
