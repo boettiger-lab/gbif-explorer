@@ -159,9 +159,9 @@ get_richness_ <- function(
       select(taxonkey, !!index) |>
       inner_join(poly_hexed) |>
       distinct() |>
-      count(h3id) |>
+      count(!!index) |>
       mutate(logn = log(n), value = logn / max(logn)) |>
-      mutate(geom = h3_cell_to_boundary_wkt(h3id)) |>
+      mutate(geom = h3_cell_to_boundary_wkt(!!index)) |>
       write_dataset(richness_cache)
   }
 
