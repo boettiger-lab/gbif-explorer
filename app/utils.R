@@ -140,14 +140,11 @@ get_richness_ <- function(
   taxa_selections = list(),
   server
 ) {
-  gbif <- open_gbif_region(poly_hexed, server)
-  gbif <- filter_gbif_taxa(gbif, taxa_selections)
-
   # zoom is already determined by poly_hexed
   hexcols <- poly_hexed |> colnames()
   index <- hexcols[2]
 
-  hash <- digest::digest(list(poly_hexed, taxa_selections, zoom))
+  hash <- digest::digest(list(poly_hexed, taxa_selections))
   richness_cache <- paste0(
     "s3://public-data/gbif-cache/richness/",
     hash,
@@ -155,7 +152,8 @@ get_richness_ <- function(
   )
 
   if (!is_cached(richness_cache)) {
-    gbif |>
+    open_gbif_region(poly_hexed, server) |>
+      filter_gbif_taxa(taxa_selections) |>
       select(taxonkey, !!index) |>
       inner_join(poly_hexed) |>
       distinct() |>

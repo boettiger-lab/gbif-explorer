@@ -18,7 +18,7 @@ poly <- open_dataset(
 
 
 poly_hexed <- get_h3_aoi(poly)
-
+get_richness(poly_hexed, list())
 
 # weird things happen hexing too much?
 #z = sf::st_sf(sf::st_as_sfc(st_bbox(c(xmin = 180, ymin = -89.99, xmax = 180, ymax = 89.99), crs=4326)))
