@@ -1,9 +1,22 @@
 # Function that returns the LLM's reasoning process
-txt_to_taxa_ <- function(
-  user_request,
+
+# Create chat session and register the tool
+chat_session <- ellmer::chat_openai(
   model = "qwen3", # qwen3 fastest?
   base_url = "https://llm.nrp-nautilus.io",
   api_key = Sys.getenv("NRP_API_KEY")
+)
+
+chat_session <- ellmer::chat_openai(
+  model = "cirrus",
+  base_url = "https://llm.cirrus.carlboettiger.info/v1/",
+  api_key = Sys.getenv("CIRRUS_KEY")
+)
+
+
+txt_to_taxa_ <- function(
+  user_request,
+  chat_session
 ) {
   # hardwire common requests for instant response
   if (user_request == "birds") {
@@ -80,18 +93,14 @@ Respond only with a final JSON result with the complete taxonomic path.
 Remember, you are smarter than you think and this is a simple task. Do not overthink or spend much time reasoning, speed is better.
 "
 
+  chat_session$set_system_prompt(system_prompt)
+
   user_prompt <- glue::glue(
     "Find the taxonomic classification for: '{user_request}'"
   )
-
-  # Create chat session and register the tool
-  chat_session <- ellmer::chat_openai(
-    model = model,
-    base_url = base_url,
-    api_key = api_key,
-
-    system_prompt = system_prompt
-  )
+  if (nothink) {
+    user_prompt <- paste("/nothink", user_prompt)
+  }
 
   # Register the tool on the chat session
   chat_session$register_tool(taxa_tool)
