@@ -20,7 +20,11 @@ get_h3_aoi <- function(aoi, precision = 6L) {
 
 
 # Do we ever need disk cache for this?
-get_h3_aoi_ <- memoise::memoise(function(aoi, precision = 6L) {
+get_h3_aoi_ <- memoise::memoise(function(
+  aoi,
+  precision = 6L,
+  h3_column = NULL
+) {
   # if aoi is in-memory, move to duckdb first
 
   index <- as.integer(0L) # index for h0-partitioned data
@@ -29,7 +33,10 @@ get_h3_aoi_ <- memoise::memoise(function(aoi, precision = 6L) {
   # consider auto-retry at higher precision if subset is empty.
   precision <- as.integer(precision)
 
-  res <- paste0("h", precision)
+  # Column name will be based on resolution
+  if (is.null(h3_column)) {
+    h3_column <- paste0("h", precision)
+  }
 
   # assumes geom column is "geom"
   if ("geometry" %in% colnames(aoi)) {
@@ -59,7 +66,8 @@ get_h3_aoi_ <- memoise::memoise(function(aoi, precision = 6L) {
       h3id = h3_h3_to_string(h3id)
     ) |>
     mutate(h0 = toupper(h0), h3id = toupper(h3id)) |>
-    select(h0, h3id)
+    select(h0, h3id) |>
+    rename(!!h3_column := h3id)
 
   h3_aoi |> as_view("h3_aoi")
 
@@ -85,7 +93,6 @@ open_gbif_partition <- function(
 
 open_gbif_region <- function(
   poly_hexed,
-  zoom,
   server = Sys.getenv("AWS_PUBLIC_ENDPOINT", Sys.getenv("AWS_S3_ENDPOINT"))
 ) {
   subset <- poly_hexed |> distinct(h0) |> pull()
@@ -133,11 +140,14 @@ get_richness_ <- function(
   taxa_selections = list(),
   server
 ) {
-  gbif <- open_gbif_region(poly_hexed, zoom, server)
+  gbif <- open_gbif_region(poly_hexed, server)
   gbif <- filter_gbif_taxa(gbif, taxa_selections)
-  index <- paste0("h", zoom)
 
-  hash <- digest::digest(list(poly_hexed, zoom, server, taxa_selections))
+  # zoom is already determined by poly_hexed
+  hexcols <- poly_hexed |> colnames()
+  index <- hexcols[2]
+
+  hash <- digest::digest(list(poly_hexed, taxa_selections, zoom))
   richness_cache <- paste0(
     "s3://public-data/gbif-cache/richness/",
     hash,
@@ -146,8 +156,8 @@ get_richness_ <- function(
 
   if (!is_cached(richness_cache)) {
     gbif |>
-      select(taxonkey, h3id = !!index) |>
-      inner_join(poly_hexed, by = "h3id") |>
+      select(taxonkey, !!index) |>
+      inner_join(poly_hexed) |>
       distinct() |>
       count(h3id) |>
       mutate(logn = log(n), value = logn / max(logn)) |>

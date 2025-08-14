@@ -14,6 +14,8 @@ add_countries <- function(map) {
       source_layer = "countries",
       fill_opacity = 0.2,
       fill_color = "purple",
+      fill_outline_color = "#460072",
+
       tooltip = mapgl::concat(
         "Name: ",
         mapgl::get_column("primary")
@@ -30,6 +32,7 @@ add_regions <- function(map) {
       source_layer = "regions",
       fill_opacity = 0.2,
       fill_color = "purple",
+      fill_outline_color = "#460072",
       tooltip = mapgl::concat(
         "Name: ",
         mapgl::get_column("primary")
@@ -45,6 +48,8 @@ add_counties <- function(map) {
       source = "county_source",
       source_layer = "counties",
       fill_opacity = 0.2,
+      fill_outline_color = "#460072",
+
       fill_color = "purple",
       tooltip = mapgl::concat(
         "Name: ",
@@ -66,6 +71,7 @@ add_tracts <- function(map) {
       id = "tract_layer",
       source = "tract_source",
       source_layer = tract_layer_name,
+      fill_outline_color = "#460072",
       fill_opacity = 0.2,
       fill_color = "purple",
       tooltip = mapgl::concat(

@@ -3,8 +3,8 @@ library(dplyr)
 library(sf)
 library(spData)
 library(mapgl)
-source("utils.R")
-source("data-layers.R")
+source("app/utils.R")
+source("app/data-layers.R")
 duckdb_secrets()
 
 
@@ -17,8 +17,12 @@ poly <- open_dataset(
   select(id, division_id, geom = geometry)
 
 
-z = sf::st_sf(sf::st_as_sfc(st_bbox(c(xmin = 180, ymin = -89.99, xmax = 180, ymax = 89.99), crs=4326)))
-get_h3_aoi(z)
+poly_hexed <- get_h3_aoi(poly)
+
+
+# weird things happen hexing too much?
+#z = sf::st_sf(sf::st_as_sfc(st_bbox(c(xmin = 180, ymin = -89.99, xmax = 180, ymax = 89.99), crs=4326)))
+#get_h3_aoi(z)
 
 
 dest <- glue::glue("s3://public-data/cache/biodiversity/nevada-all-z5-v1.h3j")
