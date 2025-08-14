@@ -114,6 +114,18 @@ filter_gbif_taxa <- function(gbif, selections) {
   return(filtered_gbif)
 }
 
+
+is_cached <- function(s3, recursive = FALSE) {
+  tryCatch(
+    {
+      df <- open_dataset(s3, recursive = recursive)
+      inherits(df, "tbl_sql")
+    },
+    error = function(e) FALSE,
+    finally = FALSE
+  )
+}
+
 ## Memoise the slow stuff
 get_richness_ <- function(
   poly_hexed,
@@ -132,8 +144,7 @@ get_richness_ <- function(
     fileext = ".parquet"
   )
 
-  cache_exists <- TRUE #FIXME check s3
-  if (cache_exists) {
+  if (!is_cached(richness_cache)) {
     gbif |>
       select(taxonkey, h3id = !!index) |>
       inner_join(poly_hexed, by = "h3id") |>

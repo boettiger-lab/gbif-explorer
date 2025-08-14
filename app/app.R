@@ -26,8 +26,13 @@ duckdb_config(threads = 100)
 ui <- page_sidebar(
   title = "Explore Global Biodiversity",
   includeMarkdown(
-    "Activate the area selector to select specific regions (countries, states, counties, etc) by clicking on the map.  Or, use the draw tools to create any custom region.  Or simply zoom in to the desired region using scrolling or geocoder search.
-     Enter the species or taxonomic group of interest into the biodiversity search bar.
+    "Activate the area selector to select specific regions (countries, states, counties, etc) by clicking on the map.
+    
+    Smaller areas will be faster to compute!  Richness resolution will depend on your current zoom.
+    
+    
+    *Experimental*: use the draw tools to create any custom region.  Or simply zoom in to the desired region using scrolling or geocoder search.
+    Enter the species or taxonomic group of interest into the biodiversity search bar.
     
     "
   ),
