@@ -27,11 +27,11 @@ ui <- page_sidebar(
   title = "Explore Global Biodiversity",
   includeMarkdown(
     "Activate the area selector to select specific regions (countries, states, counties, etc) by clicking on the map.
+Then, enter the species or taxonomic group of interest into the biodiversity search bar.
 
-Smaller areas will be faster to compute!  Richness resolution will depend on your current zoom.
+Smaller areas will be faster to compute!  Zoom in further to show richness with a finer resolution hex grid, but higher resolutions will be much slower and may crash.
 
-*Experimental*: use the draw tools to create any custom region.  Or simply zoom in to the desired region using scrolling or geocoder search.
-Enter the species or taxonomic group of interest into the biodiversity search bar.
+*Experimental*: use the draw tools to create any custom region.  Or simply zoom in to the desired region with scrolling and activate richness for the entire visible area.
 
 "
   ),

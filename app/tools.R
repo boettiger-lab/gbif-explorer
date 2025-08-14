@@ -6,3 +6,6 @@ get_carbon <- function(
 
 # list by species
 richness_table <- function() {}
+
+# should this also support richness or single species?
+inat_rangemap <- function() {}
