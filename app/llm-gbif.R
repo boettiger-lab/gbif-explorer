@@ -1,22 +1,62 @@
 # Function that returns the LLM's reasoning process
 
 # Create chat session and register the tool
-chat_session <- ellmer::chat_openai(
+nrp <- ellmer::chat_openai(
   model = "qwen3", # qwen3 fastest?
   base_url = "https://llm.nrp-nautilus.io",
   api_key = Sys.getenv("NRP_API_KEY")
 )
 
-chat_session <- ellmer::chat_openai(
+cirrus <- ellmer::chat_openai(
   model = "cirrus",
   base_url = "https://llm.cirrus.carlboettiger.info/v1/",
   api_key = Sys.getenv("CIRRUS_KEY")
 )
 
 
+# Helper function to parse LLM response and extract JSON
+parse_llm_response <- function(response) {
+  # Remove common LLM wrapper tags
+  response <- gsub("<think>.*?</think>", "", response, perl = TRUE)
+  response <- trimws(response)
+
+  # Try to extract JSON from the response
+  # Look for content between { and } (including nested braces)
+  json_pattern <- "\\{[^{}]*(?:\\{[^{}]*\\}[^{}]*)*\\}"
+  json_match <- regmatches(
+    response,
+    regexpr(json_pattern, response, perl = TRUE)
+  )
+
+  if (length(json_match) > 0 && json_match != "") {
+    # Try to parse the extracted JSON
+    tryCatch(
+      {
+        return(jsonlite::fromJSON(json_match))
+      },
+      error = function(e) {
+        warning("Failed to parse JSON: ", json_match)
+        return(list())
+      }
+    )
+  } else {
+    # If no JSON found, try parsing the entire response
+    tryCatch(
+      {
+        return(jsonlite::fromJSON(response))
+      },
+      error = function(e) {
+        warning("No valid JSON found in response: ", response)
+        return(list())
+      }
+    )
+  }
+}
+
 txt_to_taxa_ <- function(
   user_request,
-  chat_session
+  chat_session = cirrus,
+  nothink = TRUE
 ) {
   # hardwire common requests for instant response
   if (user_request == "birds") {
@@ -107,7 +147,9 @@ Remember, you are smarter than you think and this is a simple task. Do not overt
 
   # Now chat with the tool available
   resp <- chat_session$chat(user_prompt)
-  jsonlite::fromJSON(resp)
+
+  # Parse the JSON response from the LLM
+  parse_llm_response(resp)
 }
 
 txt_to_taxa <- memoise::memoise(txt_to_taxa_)

@@ -16,20 +16,36 @@ sf_to_lazy <- function(gdf) {
 
 # FIXME Debug testing:
 # Can get_h3_aoi return no hexes, e.g. point geom,
-
 get_h3_aoi <- function(
   aoi,
   precision = 6L,
   h3_column = NULL,
   keep_cols = NULL,
-  uppercase = TRUE
+  uppercase = TRUE,
+  cache_path = "s3://public-data/gbif-cache/aoi/"
 ) {
   ## IF aoi is lazy already, we can get_h3_aoi without serializing to fgb.
   ## But we want to materialize it just to get the object hash
   x <- sf_to_lazy(aoi)
-  x$hash
+  hash <- digest::digest(list(
+    x$hash,
+    precision,
+    h3_column,
+    keep_cols,
+    uppercase
+  ))
 
-  get_h3_aoi_(x$gdf, precision, h3_column, keep_cols, uppercase)
+  cache <- paste0(
+    cache_path,
+    hash,
+    fileext = ".parquet"
+  )
+
+  if (!is_cached(cache)) {
+    get_h3_aoi_(x$gdf, precision, h3_column, keep_cols, uppercase) |>
+      duckdbfs::write_dataset(cache)
+  }
+  duckdbfs::open_dataset(cache, recursive = FALSE)
 }
 
 get_h3_aoi_ <- function(
