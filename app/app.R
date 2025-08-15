@@ -18,8 +18,8 @@ library(jsonlite)
 library(glue)
 source("data-layers.R")
 source("utils.R")
-
 source("llm-gbif.R")
+source("tools.R")
 
 duckdb_secrets()
 duckdb_config(threads = 100)

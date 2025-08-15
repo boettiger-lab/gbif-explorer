@@ -1,8 +1,8 @@
-server <- Sys.getenv("AWS_PUBLIC_ENDPOINT", Sys.getenv("AWS_S3_ENDPOINT")
+server <- Sys.getenv("AWS_PUBLIC_ENDPOINT", Sys.getenv("AWS_S3_ENDPOINT"))
 
 get_carbon <- function(
   poly_hexed,
-  taxa_selections = list(),
+  taxa_selections = list()
 ) {}
 
 # list by species
@@ -12,19 +12,17 @@ richness_table <- function() {}
 inat_rangemap <- function() {}
 
 
-# compute zonal stats.  
+# compute zonal stats.
 # benchmark pure spatial approaches vs hex-joins
 # What resolution should we hex vs when should we switch to st_contains?
-get_zonal_richness <-  function(
+get_zonal_richness <- function(
   poly,
   zoom,
   id_column = "id",
   taxa_selections = list(),
   server = server
 ) {
-
   poly_hexed <- get_h3_aoi(poly, precision = zoom, keep_cols = id_column)
-  
 }
 
 get_zonal_richness_ <- function(
@@ -32,8 +30,6 @@ get_zonal_richness_ <- function(
   taxa_selections = list(),
   server = server
 ) {
-
-
   hash <- digest::digest(list(poly_hexed, taxa_selections))
   cache <- paste0(
     "s3://public-data/gbif-cache/zonal_richness/",
@@ -62,12 +58,11 @@ get_zonal_richness_ <- function(
 }
 
 
-
 # Hex-based calculation of species richness
 get_richness_ <- function(
   poly_hexed,
   taxa_selections = list(),
-  server = Sys.getenv("AWS_PUBLIC_ENDPOINT", Sys.getenv("AWS_S3_ENDPOINT")
+  server = server
 ) {
   hash <- digest::digest(list(poly_hexed, taxa_selections))
   richness_cache <- paste0(
