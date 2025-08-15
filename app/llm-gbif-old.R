@@ -14,7 +14,46 @@ cirrus <- ellmer::chat_openai(
 )
 
 
-txt_to_taxa_ <- function(
+# Helper function to parse LLM response and extract JSON
+parse_llm_response <- function(response) {
+  # Remove common LLM wrapper tags
+  response <- gsub("<think>.*?</think>", "", response, perl = TRUE)
+  response <- trimws(response)
+
+  # Try to extract JSON from the response
+  # Look for content between { and } (including nested braces)
+  json_pattern <- "\\{[^{}]*(?:\\{[^{}]*\\}[^{}]*)*\\}"
+  json_match <- regmatches(
+    response,
+    regexpr(json_pattern, response, perl = TRUE)
+  )
+
+  if (length(json_match) > 0 && json_match != "") {
+    # Try to parse the extracted JSON
+    tryCatch(
+      {
+        return(jsonlite::fromJSON(json_match))
+      },
+      error = function(e) {
+        warning("Failed to parse JSON: ", json_match)
+        return(list())
+      }
+    )
+  } else {
+    # If no JSON found, try parsing the entire response
+    tryCatch(
+      {
+        return(jsonlite::fromJSON(response))
+      },
+      error = function(e) {
+        warning("No valid JSON found in response: ", response)
+        return(list())
+      }
+    )
+  }
+}
+
+txt_to_taxa_old <- function(
   user_request,
   chat_session = cirrus,
   thinking = TRUE
@@ -107,19 +146,10 @@ Remember, you are smarter than you think and this is a simple task. Do not overt
   chat_session$register_tool(taxa_tool)
 
   # Now chat with the tool available
-  resp <- chat_session$chat_structured(
+  resp <- chat_session$chat(
     user_prompt,
-    type = type_from_schema(path = "classification-schema.json")
   )
 
   # Parse the JSON response from the LLM
-  # parse_llm_response(resp)
-  resp
+  parse_llm_response(resp)
 }
-
-#txt_to_taxa <- memoise::memoise(txt_to_taxa_)
-
-# examples
-# bench::bench_time({ txt_to_taxa("hummingbirds") })
-# txt_to_taxa("hummingbirds")
-# txt_to_taxa_("Coyote")

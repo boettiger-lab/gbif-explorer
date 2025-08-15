@@ -228,3 +228,20 @@ is_empty <- function(df) {
 
   FALSE
 }
+
+
+bot_response <- function(taxa_selected, zoom) {
+  if (length(taxa_selected) < 1) {
+    taxa_msg <- "all species"
+  } else {
+    taxa_msg <- paste0(taxa_selected, collapse = ":")
+  }
+
+  resp <- paste(
+    "Counting unique occurrences at zoom",
+    as.integer(zoom),
+    "for\n",
+    taxa_msg
+  )
+  resp
+}
