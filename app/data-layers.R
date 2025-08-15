@@ -1,7 +1,7 @@
 # Data layers are defined here with custom layer functions,
 #  making them more concise to reference in the app
 
-f <- glue
+f <- glue::glue
 server <- Sys.getenv("AWS_PUBLIC_ENDPOINT", Sys.getenv("AWS_S3_ENDPOINT"))
 countries <- f("https://{server}/public-overturemaps/countries.pmtiles")
 # Look up layer name of PMTiles file so we don't have to manually enter

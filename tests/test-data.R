@@ -1,13 +1,32 @@
 library(duckdbfs)
 library(dplyr)
+library(dbplyr)
 library(sf)
 library(spData)
 library(mapgl)
 source("app/utils.R")
 source("app/data-layers.R")
 duckdb_secrets()
+duckdbfs::load_h3()
+
+poly <- spData::us_states
+poly <- spData::world
+
+bench::bench_time({
+  hexed <- get_h3_aoi(poly, 7)
+})
+
+tmp <- tempfile(fileext=".parquet")
+bench::bench_time({
+  get_h3_aoi(poly, 7) |> write_dataset(tmp)
+})
+
+bench::bench_time({
+  get_h3_aoi(poly, 7) |> as_view("h3_aoi")
+})
 
 
+poly_hexed <- get_h3_aoi(poly, keep_cols = "NAME")
 
 poly <- open_dataset(
   "s3://public-overturemaps/regions.parquet",

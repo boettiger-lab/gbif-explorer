@@ -1,31 +1,45 @@
+# cache this somehow?  write to digest of gdf instead of fixed
 sf_to_lazy <- function(gdf) {
   if (inherits(gdf, "sf")) {
-    tmp = file.path(tempdir(), "current_drawing.fgb")
-    unlink(tmp) # i.e. overwrite
-    # do we want to write with sf? as geojson?
-    sf::st_write(gdf, tmp)
+    hash <- digest::digest(gdf)
+    tmp <- file.path(tempdir(), paste0(hash, ".fgb"))
+    if (!file.exists(tmp)) {
+      sf::st_write(gdf, tmp, quiet = FALSE)
+    }
     gdf <- duckdbfs::open_dataset(tmp)
+  } else {
+    # materialize it enough to get hash
+    hash <- gdf |> duckdbfs::to_sf() |> digest::digest()
   }
-  gdf
+  list(gdf = gdf, hash = hash)
 }
 
 # FIXME Debug testing:
 # Can get_h3_aoi return no hexes, e.g. point geom,
 
-get_h3_aoi <- function(aoi, precision = 6L) {
-  aoi <- sf_to_lazy(aoi) # can't memoise lazy
-
-  get_h3_aoi_(aoi, precision)
-}
-
-
-# Do we ever need disk cache for this?
-get_h3_aoi_ <- memoise::memoise(function(
+get_h3_aoi <- function(
   aoi,
   precision = 6L,
-  h3_column = NULL
+  h3_column = NULL,
+  keep_cols = NULL,
+  uppercase = TRUE
 ) {
-  # if aoi is in-memory, move to duckdb first
+  ## IF aoi is lazy already, we can get_h3_aoi without serializing to fgb.
+  ## But we want to materialize it just to get the object hash
+  x <- sf_to_lazy(aoi)
+  x$hash
+
+  get_h3_aoi_(x$gdf, precision, h3_column, keep_cols, uppercase)
+}
+
+get_h3_aoi_ <- function(
+  aoi,
+  precision = 6L,
+  h3_column = NULL,
+  keep_cols = NULL,
+  uppercase = TRUE
+) {
+  # can't compute digest if aoi is lazy
 
   index <- as.integer(0L) # index for h0-partitioned data
   duckdbfs::load_h3()
@@ -40,7 +54,7 @@ get_h3_aoi_ <- memoise::memoise(function(
 
   # assumes geom column is "geom"
   if ("geometry" %in% colnames(aoi)) {
-    aoi <- aoi |> rename(geom = geometry)
+    aoi <- aoi |> dplyr::rename(geom = geometry)
   }
 
   # CHECK IF POINT GEOM, JUST RETURN hex of desired precision at point!!
@@ -49,7 +63,7 @@ get_h3_aoi_ <- memoise::memoise(function(
   # multipolygon dump may not be needed for draw tools.
   h3_aoi <- aoi |>
     # dump multi-polygons to polygons
-    mutate(
+    dplyr::mutate(
       poly = array_extract(unnest(st_dump(geom)), "geom"),
       # compute h3 cells of each polygon
       h3id = h3_polygon_wkt_to_cells(poly, {
@@ -59,20 +73,26 @@ get_h3_aoi_ <- memoise::memoise(function(
       h3id = unnest(h3id)
     ) |>
     # Also tell me the h0.
-    mutate(
+    dplyr::mutate(
       h0 = h3_h3_to_string(h3_cell_to_parent(h3id, {
         index
       })),
       h3id = h3_h3_to_string(h3id)
-    ) |>
-    mutate(h0 = toupper(h0), h3id = toupper(h3id)) |>
-    select(h0, h3id) |>
-    rename(!!h3_column := h3id)
+    )
 
-  h3_aoi |> as_view("h3_aoi")
+  if (uppercase) {
+    h3_aoi <- h3_aoi |>
+      dplyr::mutate(h0 = toupper(h0), h3id = toupper(h3id))
+  }
+
+  h3_aoi <- h3_aoi |>
+    dplyr::select(dplyr::any_of(c("h0", "h3id", keep_cols))) |>
+    dplyr::rename(!!h3_column := h3id)
+
+  # h3_aoi |> as_view("h3_aoi")
 
   h3_aoi
-})
+}
 
 
 open_gbif_partition <- function(
@@ -131,75 +151,6 @@ is_cached <- function(s3, recursive = FALSE) {
     error = function(e) FALSE,
     finally = FALSE
   )
-}
-
-## Memoise the slow stuff
-get_richness_ <- function(
-  poly_hexed,
-  zoom,
-  taxa_selections = list(),
-  server
-) {
-  # zoom is already determined by poly_hexed
-  hexcols <- poly_hexed |> colnames()
-  index <- hexcols[2]
-
-  hash <- digest::digest(list(poly_hexed, taxa_selections))
-  richness_cache <- paste0(
-    "s3://public-data/gbif-cache/richness/",
-    hash,
-    fileext = ".parquet"
-  )
-
-  if (!is_cached(richness_cache)) {
-    open_gbif_region(poly_hexed, server) |>
-      filter_gbif_taxa(taxa_selections) |>
-      select(taxonkey, !!index) |>
-      inner_join(poly_hexed) |>
-      distinct() |>
-      rename(h3id = !!index) |>
-      count(h3id) |>
-      mutate(logn = log(n), value = logn / max(logn)) |>
-      mutate(geom = h3_cell_to_boundary_wkt(h3id)) |>
-      write_dataset(richness_cache)
-  }
-
-  richness_cache
-}
-
-get_richness <- function(
-  poly,
-  zoom,
-  taxa_selections = list(),
-  max_features = getOption("shiny_max_features", 20000L),
-  warning = TRUE,
-  server = Sys.getenv("AWS_PUBLIC_ENDPOINT", Sys.getenv("AWS_S3_ENDPOINT"))
-) {
-  ## This step is memoised (after materializing the poly)
-  poly_hexed <- get_h3_aoi(poly, as.integer(zoom))
-
-  richness_cache <- get_richness_(
-    poly_hexed,
-    zoom,
-    taxa_selections,
-    server
-  )
-
-  gbif <- open_dataset(richness_cache, recursive = FALSE)
-
-  if (warning) {
-    n_features <- gbif |> count() |> pull(n)
-    if (n_features > max_features) {
-      warning(paste("returning only first", max_features, "of", n_features))
-    }
-  }
-
-  gbif <- gbif |>
-    head(max_features) |> # max number of features
-    collect() |>
-    st_as_sf(wkt = "geom", crs = 4326)
-
-  gbif
 }
 
 
