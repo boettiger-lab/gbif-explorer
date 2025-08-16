@@ -1,5 +1,7 @@
 # Function that returns the LLM's reasoning process
 
+# NOTE -- currently does not remember chat context! be sure to
+
 # Create chat session and register the tool
 nrp <- ellmer::chat_openai(
   model = "qwen3", # qwen3 fastest?
@@ -13,88 +15,111 @@ cirrus <- ellmer::chat_openai(
   api_key = Sys.getenv("CIRRUS_KEY")
 )
 
-
-txt_to_taxa_ <- function(
-  user_request,
-  chat_session = cirrus,
-  thinking = TRUE
-) {
+known_queries <- function(user_request) {
   # hardwire common requests for instant response
   if (user_request == "birds") {
-    return(list(
-      "kingdom" = "Animalia",
-      "phylum" = "Chordata",
-      "class" = "Aves"
-    ))
+    return(
+      list(
+        known = TRUE,
+        classification = list(
+          "kingdom" = "Animalia",
+          "phylum" = "Chordata",
+          "class" = "Aves"
+        )
+      )
+    )
   }
   # hardwire common requests for instant response
   if (user_request == "all") {
-    return(list())
-  }
-
-  # Core utility function for getting taxa
-  gbif_taxonomy <- function(rank = "class", name = "Aves") {
-    server <- Sys.getenv("AWS_PUBLIC_ENDPOINT", Sys.getenv("AWS_S3_ENDPOINT"))
-    taxa <- duckdbfs::open_dataset(glue::glue(
-      "https://{server}/public-gbif/taxa.parquet"
+    return(list(
+      known = TRUE,
+      classification = list()
     ))
-    taxonomic_ranks <- c(
-      "kingdom",
-      "phylum",
-      "class",
-      "order",
-      "family",
-      "genus",
-      "species"
-    )
-
-    i <- which(taxonomic_ranks == rank)
-    who <- taxonomic_ranks[1:i]
-    taxa |>
-      dplyr::filter(.data[[rank]] == !!name) |>
-      dplyr::select(dplyr::all_of(who)) |>
-      dplyr::distinct() |>
-      dplyr::collect()
   }
 
-  # Create tool using tool() function
-  taxa_tool <- ellmer::tool(
-    gbif_taxonomy,
-    name = "taxa_tool",
-    description = "Get the GBIF taxonomy: a column for each taxonomic rank, with rows for each classification",
-    arguments = list(
-      rank = ellmer::type_string(
-        "The taxonomic rank (e.g., 'kingdom', 'class', 'family')",
-        required = TRUE
-      ),
-      name = ellmer::type_string(
-        "The name of the taxon (e.g., 'Animalia', 'Aves', 'Corvidae')",
-        required = TRUE
-      )
-    )
+  list(known = FALSE)
+}
+
+
+guess_server <- function() {
+  Sys.getenv(
+    "AWS_PUBLIC_ENDPOINT",
+    Sys.getenv("AWS_S3_ENDPOINT"),
+    "minio.carlboettiger.info"
+  )
+}
+# Helper utility function for getting taxa
+gbif_taxonomy <- function(rank = "class", name = "Aves") {
+  server <- guess_server()
+  taxa <- duckdbfs::open_dataset(glue::glue(
+    "https://{server}/public-gbif/taxa.parquet"
+  ))
+  taxonomic_ranks <- c(
+    "kingdom",
+    "phylum",
+    "class",
+    "order",
+    "family",
+    "genus",
+    "species",
+    "infraspecificEpithet"
   )
 
-  system_prompt <- "
-You are a taxonomic expert. You take a user's query and return the classification heirachy of the requested group.
-The taxonomic hierarchy is: kingdom -> phylum -> class -> order -> family -> genus -> species
+  i <- which(taxonomic_ranks == rank)
+  who <- taxonomic_ranks[1:i]
+  taxa |>
+    dplyr::filter(.data[[rank]] == !!name) |>
+    dplyr::select(dplyr::all_of(who)) |>
+    dplyr::distinct() |>
+    dplyr::collect()
+}
+# Create tool using tool() function
+taxa_tool <- ellmer::tool(
+  gbif_taxonomy,
+  name = "taxa_tool",
+  description = "Get the GBIF taxonomy: a column for each taxonomic rank, with rows for each classification",
+  arguments = list(
+    rank = ellmer::type_string(
+      "The taxonomic rank (e.g., 'kingdom', 'class', 'family')",
+      required = TRUE
+    ),
+    name = ellmer::type_string(
+      "The name of the taxon (e.g., 'Animalia', 'Aves', 'Corvidae')",
+      required = TRUE
+    )
+  )
+)
 
-Only descend as far as the requested taxonomic group. For example:
-- 'birds' -> Kingdom: Animalia, Class: Aves
-- 'crows' -> Kingdom: Animalia, Class: Aves, Family: Corvidae
-- 'mammals' -> Kingdom: Animalia, Class: Mammalia
-- 'Homo sapiens' -> Kingdom: Animalia, Class: Mammalia, Order: Primates, Family: Hominidae, Genus: Homo, Species: Homo sapiens
 
-You have access to the `taxa_tool` which takes a rank and name and returns a data.frame with the parent classification.
-Use the tool to verify your answer.  For example, 'birds' you would call `taxa_tool('class', 'Aves')` to confirm,
-and adjust your answer as needed.
+parse_resp <- function(resp) {
+  return(jsonlite::fromJSON(resp$classification))
 
-If you are asked for 'All' or 'all species', return an empty JSON array.
+  # string sep without JSON formatting
+  # vec <- resp$classification |> str_split_1(", ")
+  # taxa <- vec |> str_split_i(": ", 2)
+  # ranks <- vec |> str_split_i(": ", 1)
+  # names(taxa) <- ranks
+  # as.list(taxa)
+}
 
-Respond only with a final JSON result with the complete taxonomic path.
-Remember, you are smarter than you think and this is a simple task. Do not overthink or spend much time reasoning, speed is better.
-"
-
+llm_setup <- function(chat_session) {
+  system_prompt <- readr::read_file("app/system_prompt.txt")
   chat_session$set_system_prompt(system_prompt)
+  chat_session$register_tool(taxa_tool)
+  chat_session
+}
+
+taxa_chat <- llm_setup(cirrus)
+
+txt_to_taxa_ <- function(
+  user_request,
+  chat_session = taxa_chat,
+  thinking = TRUE
+) {
+  answer <- known_queries(user_request)
+  if (answer$known) {
+    return(answer$classification)
+  }
 
   user_prompt <- glue::glue(
     "Find the taxonomic classification for: '{user_request}'"
@@ -103,21 +128,29 @@ Remember, you are smarter than you think and this is a simple task. Do not overt
     user_prompt <- paste("/nothink", user_prompt)
   }
 
-  # Register the tool on the chat session
-  chat_session$register_tool(taxa_tool)
+  parser <- type_from_schema(path = "classification-schema.json")
+  parser <- type_object(
+    #  thinking = type_string(),
+    # reasoning = type_string(),
+    success = type_boolean(),
+    clarifying_question = type_string(),
+    classification = type_string()
+  )
 
   # Now chat with the tool available
   resp <- chat_session$chat_structured(
     user_prompt,
-    type = type_from_schema(path = "classification-schema.json")
+    type = parser
   )
 
-  # Parse the JSON response from the LLM
-  # parse_llm_response(resp)
-  resp
+  if (resp$success) {
+    return(parse_resp(resp))
+  } else {
+    resp
+  }
 }
 
-#txt_to_taxa <- memoise::memoise(txt_to_taxa_)
+txt_to_taxa <- memoise::memoise(txt_to_taxa_)
 
 # examples
 # bench::bench_time({ txt_to_taxa("hummingbirds") })
