@@ -1,17 +1,18 @@
+library(ellmer)
 # Function that returns the LLM's reasoning process
 
 # NOTE -- currently does not remember chat context! be sure to
 
 # Create chat session and register the tool
-nrp <- ellmer::chat_openai(
+llm_model <- ellmer::chat_openai(
   model = "qwen3", # qwen3 fastest?
   base_url = "https://llm.nrp-nautilus.io",
   api_key = Sys.getenv("NRP_API_KEY")
 )
 
-cirrus <- ellmer::chat_openai(
+llm_model2 <- ellmer::chat_openai(
   model = "cirrus",
-  base_url = "https://llm.cirrus.carlboettiger.info/v1/",
+  base_url = "https://vllm-cirrus.carlboettiger.info/v1/",
   api_key = Sys.getenv("CIRRUS_KEY")
 )
 
@@ -103,13 +104,13 @@ parse_resp <- function(resp) {
 }
 
 llm_setup <- function(chat_session) {
-  system_prompt <- readr::read_file("app/system_prompt.txt")
+  system_prompt <- readr::read_file("system_prompt.txt")
   chat_session$set_system_prompt(system_prompt)
   chat_session$register_tool(taxa_tool)
   chat_session
 }
 
-taxa_chat <- llm_setup(cirrus)
+taxa_chat <- llm_setup(llm_model)
 
 txt_to_taxa_ <- function(
   user_request,
@@ -128,7 +129,7 @@ txt_to_taxa_ <- function(
     user_prompt <- paste("/nothink", user_prompt)
   }
 
-  parser <- type_from_schema(path = "classification-schema.json")
+  # parser <- type_from_schema(path = "classification-schema.json")
   parser <- type_object(
     #  thinking = type_string(),
     # reasoning = type_string(),
