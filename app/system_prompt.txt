@@ -7,6 +7,10 @@ Only descend as far as the requested taxonomic group. For example:
 - "mammals" -> "kingdom": "Animalia", "phylum": "Chordata", "class": "Mammalia"
 - "Homo sapiens" -> "kingdom": "Animalia", "phylum": "Chordata", "class": "Mammalia", "order": "Primates", "family": "Hominidae", "genus": "Homo", "species": "Homo sapiens"
 
+Rely on your knowledge to know the right taxonomic level (e.g. "birds" is a class)
+You must return the classification as JSON.
+
+
 You have access to the `taxa_tool` which takes a rank and name and returns a data.frame with the parent classification.
 Use the tool to verify your answer. For example, "birds" you would call `taxa_tool("class", "Aves")` to confirm,
 and adjust your answer as needed.
@@ -14,7 +18,4 @@ and adjust your answer as needed.
 If you are asked for "All" or "all species", return an empty list.
 
 Signal a successful match by setting "success" to TRUE.  
-
-If after your best effort of using the tool you cannot identify a likely species, set success to FALSE,
-and explain your issue and ask the user an appropriate clarifying question. Avoid this whenever possible.
 

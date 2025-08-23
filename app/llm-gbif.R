@@ -10,10 +10,17 @@ llm_model <- ellmer::chat_openai(
   api_key = Sys.getenv("NRP_API_KEY")
 )
 
-llm_model2 <- ellmer::chat_openai(
+llm_model <- ellmer::chat_openai(
   model = "cirrus",
-  base_url = "https://vllm-cirrus.carlboettiger.info/v1/",
+  base_url = "https://llm.cirrus.carlboettiger.info/v1/",
   api_key = Sys.getenv("CIRRUS_KEY")
+)
+
+# Create chat session and register the tool
+llm_model <- ellmer::chat_openai(
+  model = "qwen/qwen3-235b-a22b-thinking-2507", # qwen3 fastest?
+  base_url = "https://openrouter.ai/api/v1",
+  api_key = Sys.getenv("OPENROUTER_API_KEY")
 )
 
 known_queries <- function(user_request) {
@@ -93,14 +100,18 @@ taxa_tool <- ellmer::tool(
 
 
 parse_resp <- function(resp) {
-  return(jsonlite::fromJSON(resp$classification))
-
-  # string sep without JSON formatting
-  # vec <- resp$classification |> str_split_1(", ")
-  # taxa <- vec |> str_split_i(": ", 2)
-  # ranks <- vec |> str_split_i(": ", 1)
-  # names(taxa) <- ranks
-  # as.list(taxa)
+  tryCatch(
+    jsonlite::fromJSON(resp$classification),
+    error = function(e) {
+      # string sep without JSON formatting
+      vec <- resp$classification |> stringr::str_split_1(", ")
+      taxa <- vec |> stringr::str_split_i(": ", 2)
+      ranks <- vec |> stringr::str_split_i(": ", 1)
+      names(taxa) <- ranks
+      as.list(taxa)
+    },
+    finally = NULL
+  )
 }
 
 llm_setup <- function(chat_session) {
@@ -115,7 +126,7 @@ taxa_chat <- llm_setup(llm_model)
 txt_to_taxa_ <- function(
   user_request,
   chat_session = taxa_chat,
-  thinking = TRUE
+  thinking = FALSE
 ) {
   answer <- known_queries(user_request)
   if (answer$known) {
@@ -129,14 +140,14 @@ txt_to_taxa_ <- function(
     user_prompt <- paste("/nothink", user_prompt)
   }
 
-  # parser <- type_from_schema(path = "classification-schema.json")
-  parser <- type_object(
-    #  thinking = type_string(),
-    # reasoning = type_string(),
-    success = type_boolean(),
-    clarifying_question = type_string(),
-    classification = type_string()
-  )
+  parser <- type_from_schema(path = "classification-schema.json")
+  #parser <- type_object(
+  #  thinking = type_string(),
+  # reasoning = type_string(),
+  # success = type_boolean(),
+  # clarifying_question = type_string(),
+  # classification = type_string()
+  # )
 
   # Now chat with the tool available
   resp <- chat_session$chat_structured(
@@ -145,7 +156,8 @@ txt_to_taxa_ <- function(
   )
 
   if (resp$success) {
-    return(parse_resp(resp))
+    # return(parse_resp(resp))
+    return(resp)
   } else {
     resp
   }
