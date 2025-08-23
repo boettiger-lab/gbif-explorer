@@ -60,10 +60,11 @@ add_counties <- function(map) {
 
 # US tracts only.  Maybe use locality from Overture World data
 tract <- "https://minio.carlboettiger.info/public-social-vulnerability/2022/SVI2022_US_tract.pmtiles"
-suppressWarnings({
-  # Guess layer name of PMTiles file so we don't have to manually enter
-  tract_layer_name <- sf::st_layers(paste0("/vsicurl/", tract))$name[1]
-})
+#suppressWarnings({
+# Guess layer name of PMTiles file so we don't have to manually enter
+#  tract_layer_name <- sf::st_layers(paste0("/vsicurl/", tract))$name[1]
+#})
+tract_layer_name <- "svi"
 
 add_tracts <- function(map) {
   map |>

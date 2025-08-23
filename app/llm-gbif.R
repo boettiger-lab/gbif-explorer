@@ -99,21 +99,6 @@ taxa_tool <- ellmer::tool(
 )
 
 
-parse_resp <- function(resp) {
-  tryCatch(
-    jsonlite::fromJSON(resp$classification),
-    error = function(e) {
-      # string sep without JSON formatting
-      vec <- resp$classification |> stringr::str_split_1(", ")
-      taxa <- vec |> stringr::str_split_i(": ", 2)
-      ranks <- vec |> stringr::str_split_i(": ", 1)
-      names(taxa) <- ranks
-      as.list(taxa)
-    },
-    finally = NULL
-  )
-}
-
 llm_setup <- function(chat_session) {
   system_prompt <- readr::read_file("system_prompt.txt")
   chat_session$set_system_prompt(system_prompt)
