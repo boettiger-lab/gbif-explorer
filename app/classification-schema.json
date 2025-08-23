@@ -1,0 +1,89 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Taxonomic Classification Response",
+  "description": "Schema for LLM response containing taxonomic classification",
+  "type": "object",
+  "properties": {
+    "thinking": {
+      "type": "string",
+      "description": "The LLM's reasoning process for determining the classification"
+    },
+    "classification": {
+      "type": "object",
+      "description": "Taxonomic classification as key-value pairs",
+      "properties": {
+        "kingdom": {
+          "type": "string",
+          "description": "Kingdom name (e.g., 'Animalia', 'Plantae')"
+        },
+        "phylum": {
+          "type": "string",
+          "description": "Phylum name (e.g., 'Chordata', 'Arthropoda')"
+        },
+        "class": {
+          "type": "string",
+          "description": "Class name (e.g., 'Aves', 'Mammalia')"
+        },
+        "order": {
+          "type": "string",
+          "description": "Order name (e.g., 'Passeriformes', 'Primates')"
+        },
+        "family": {
+          "type": "string",
+          "description": "Family name (e.g., 'Corvidae', 'Hominidae')"
+        },
+        "genus": {
+          "type": "string",
+          "description": "Genus name (e.g., 'Corvus', 'Homo')"
+        },
+        "species": {
+          "type": "string",
+          "description": "Species name (e.g., 'Corvus corax', 'Homo sapiens')"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 0
+    }
+  },
+  "required": [
+    "thinking",
+    "classification"
+  ],
+  "additionalProperties": false,
+  "examples": [
+    {
+      "thinking": "The user is asking for birds, which corresponds to the class Aves in the animal kingdom.",
+      "classification": {
+        "kingdom": "Animalia",
+        "phylum": "Chordata",
+        "class": "Aves"
+      }
+    },
+    {
+      "thinking": "Crows belong to the family Corvidae within birds.",
+      "classification": {
+        "kingdom": "Animalia",
+        "phylum": "Chordata",
+        "class": "Aves",
+        "order": "Passeriformes",
+        "family": "Corvidae"
+      }
+    },
+    {
+      "thinking": "Homo sapiens is the scientific name for humans.",
+      "classification": {
+        "kingdom": "Animalia",
+        "phylum": "Chordata",
+        "class": "Mammalia",
+        "order": "Primates",
+        "family": "Hominidae",
+        "genus": "Homo",
+        "species": "Homo sapiens"
+      }
+    },
+    {
+      "thinking": "The user requested all species, so returning empty classification.",
+      "classification": {}
+    }
+  ]
+}
