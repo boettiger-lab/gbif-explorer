@@ -4,10 +4,6 @@
   "description": "Schema for LLM response containing taxonomic classification",
   "type": "object",
   "properties": {
-    "thinking": {
-      "type": "string",
-      "description": "The LLM's reasoning process for determining the classification"
-    },
     "classification": {
       "type": "object",
       "description": "Taxonomic classification as key-value pairs",

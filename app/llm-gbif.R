@@ -9,18 +9,18 @@ llm_model <- ellmer::chat_openai(
   base_url = "https://llm.nrp-nautilus.io",
   api_key = Sys.getenv("NRP_API_KEY")
 )
-
-llm_model <- ellmer::chat_openai(
-  model = "cirrus",
-  base_url = "https://llm.cirrus.carlboettiger.info/v1/",
-  api_key = Sys.getenv("CIRRUS_KEY")
-)
-
 # Create chat session and register the tool
-llm_model <- ellmer::chat_openai(
+llm_model3 <- ellmer::chat_openai(
   model = "qwen/qwen3-235b-a22b-thinking-2507", # qwen3 fastest?
   base_url = "https://openrouter.ai/api/v1",
   api_key = Sys.getenv("OPENROUTER_API_KEY")
+)
+
+
+llm_model <- ellmer::chat_openai(
+  model = "cirrus",
+  base_url = "https://vllm-cirrus.carlboettiger.info/v1/",
+  api_key = Sys.getenv("CIRRUS_KEY")
 )
 
 known_queries <- function(user_request) {
@@ -141,22 +141,16 @@ txt_to_taxa_ <- function(
   }
 
   parser <- type_from_schema(path = "classification-schema.json")
-  #parser <- type_object(
-  #  thinking = type_string(),
-  # reasoning = type_string(),
-  # success = type_boolean(),
-  # clarifying_question = type_string(),
-  # classification = type_string()
-  # )
 
   # Now chat with the tool available
   resp <- chat_session$chat_structured(
     user_prompt,
     type = parser
   )
+  return(resp)
 
   if (resp$success) {
-    # return(parse_resp(resp))
+    return(parse_resp(resp))
     return(resp)
   } else {
     resp
