@@ -1,19 +1,55 @@
 library(shiny)
 library(bslib)
-library(shinychat)
-source("llm-gbif.R")
-ui <- page_sidebar(
-  chat_ui("chat", fill = FALSE)
+library(mapgl)
+
+ui <- page_fillable(
+  input_switch("toggle_natgeo", "natgeo", value = FALSE),
+  radioButtons(
+    "basemap",
+    "Basemap:",
+    choices = list(
+      "light" = carto_style("voyager"),
+      "dark" = carto_style("dark-matter"),
+      "satellite" = maptiler_style("satellite"),
+      "NatGeo" = "natgeo"
+    )
+  ),
+  maplibreOutput("map")
 )
 
 server <- function(input, output, session) {
-  observeEvent(input$chat_user_input, {
-    # In a real app, this would call out to a chat model or API,
-    # perhaps using the 'ellmer' package.
-    taxa_selected <- txt_to_taxa(input$chat_user_input)
-    print(taxa_selected)
-    chat_append("chat", "done")
+  output$map <- renderMaplibre(
+    maplibre() |>
+      add_raster_source(
+        id = "natgeo_source",
+        tiles = "https://server.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer/tile/{z}/{y}/{x}.png"
+      ) |>
+      add_raster_layer(
+        id = "natgeo_layer",
+        source = "natgeo_source"
+      ) |>
+      set_layout_property("natgeo_layer", "visibility", "none")
+  )
+  observeEvent(input$toggle_natgeo, {
+    if (!input$toggle_natgeo) {
+      maplibre_proxy("map") |>
+        set_layout_property("natgeo_layer", "visibility", "none")
+    }
+    if (input$toggle_natgeo) {
+      maplibre_proxy("map") |>
+        set_layout_property("natgeo_layer", "visibility", "visible")
+    }
+  })
+
+  observeEvent(input$basemap, {
+    if (input$basemap == "natgeo") {
+      maplibre_proxy("map") |>
+        set_layout_property("natgeo_layer", "visibility", "visible")
+    } else {
+      maplibre_proxy("map") |>
+        set_layout_property("natgeo_layer", "visibility", "none") |>
+        set_style(input$basemap)
+    }
   })
 }
-
 shinyApp(ui, server)

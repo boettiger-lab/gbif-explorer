@@ -55,7 +55,7 @@ Smaller areas will be faster to compute!  Zoom in further to show richness with 
               #         "Protected Areas" = "park_layer",
               #         "US fires" = "fire_layer",
             ),
-            selected = "none"
+            selected = "country_layer"
           ),
           p("")
         )
@@ -69,13 +69,14 @@ Smaller areas will be faster to compute!  Zoom in further to show richness with 
     ),
 
     br(),
+    input_switch("toggle_natgeo", "natgeo", value = FALSE),
     input_switch("hillshade_basemap", "hillshade", value = FALSE),
     input_switch("toggle_controls", "map controls", value = TRUE),
     radioButtons(
       "basemap",
       "Basemap:",
       choices = list(
-        "NatGeo" = "natgeo",
+        "national geographic" = "natgeo",
         "light" = carto_style("voyager"),
         "dark" = carto_style("dark-matter"),
         "satellite" = maptiler_style("satellite")
@@ -150,17 +151,13 @@ server <- function(input, output, session) {
       add_draw_control() |>
       add_geocoder_control()
 
-    m <- m |> add_raster_layer(id = "natgeo", source = "natgeo")
-    m
-  })
+    m <- m |>
+      add_raster_layer(id = "natgeo_layer", source = "natgeo_source") |>
+      set_layout_property("natgeo_layer", "visibility", "none")
 
-  observeEvent(input$hillshade_basemap, {
-    if (input$hillshade_basemap) {
-      maplibre_proxy("map") |>
-        add_hillshade()
-    } else {
-      maplibre_proxy("map") |> clear_layer("hills")
-    }
+    m <- m |> add_hillshade(visibility = "none")
+
+    m |> add_countries()
   })
 
   # Update map to show selected layer (polygons)
@@ -295,13 +292,37 @@ server <- function(input, output, session) {
         add_geocoder_control()
     }
   })
-
+  # is it better to set visibility or add/clear layer?
+  observeEvent(input$hillshade_basemap, {
+    if (input$hillshade_basemap) {
+      maplibre_proxy("map") |>
+        set_layout_property("hills", "visibility", "visible")
+      # add_hillshade()
+    } else {
+      maplibre_proxy("map") |>
+        set_layout_property("hills", "visibility", "none")
+      # clear_layer("hills")
+    }
+  })
+  observeEvent(input$toggle_natgeo, {
+    if (!input$toggle_natgeo) {
+      maplibre_proxy("map") |>
+        set_layout_property("natgeo_layer", "visibility", "none")
+    }
+    if (input$toggle_natgeo) {
+      maplibre_proxy("map") |>
+        set_layout_property("natgeo_layer", "visibility", "visible")
+    }
+  })
   observeEvent(input$basemap, {
+    # doesn't toggle here but works in debug, hmm
     if (input$basemap == "natgeo") {
       maplibre_proxy("map") |>
-        add_raster_layer(id = "natgeo", source = "natgeo")
+        set_layout_property("natgeo_layer", "visibility", "visible")
     } else {
-      maplibre_proxy("map") |> clear_layer("natgeo") |> set_style(input$basemap)
+      maplibre_proxy("map") |>
+        set_layout_property("natgeo_layer", "visibility", "none") |>
+        set_style(input$basemap)
     }
   })
 }

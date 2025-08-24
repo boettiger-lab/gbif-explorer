@@ -6,37 +6,42 @@ server <- Sys.getenv("AWS_PUBLIC_ENDPOINT", Sys.getenv("AWS_S3_ENDPOINT"))
 countries <- f("https://{server}/public-overturemaps/countries.pmtiles")
 # Look up layer name of PMTiles file so we don't have to manually enter
 #countries_layer_name <- sf::st_layers(paste0("/vsicurl/", countries))$name[1]
-add_countries <- function(map) {
+
+# set popup for more intformation on click
+add_countries <- function(map, ...) {
   map |>
     mapgl::add_fill_layer(
       id = "country_layer",
       source = "country_source",
       source_layer = "countries",
-      fill_opacity = 0.2,
-      fill_color = "purple",
+      fill_opacity = 0.8,
+      fill_color = "#a020f019",
       fill_outline_color = "#460072",
-
+      hover_options = list(fill_opacity = 0.2),
       tooltip = mapgl::concat(
         "Name: ",
         mapgl::get_column("primary")
-      )
+      ),
+      ...
     )
 }
 
 regions <- f("https://{server}/public-overturemaps/regions.pmtiles")
-add_regions <- function(map) {
+add_regions <- function(map, ...) {
   map |>
     mapgl::add_fill_layer(
       id = "region_layer",
       source = "region_source",
       source_layer = "regions",
-      fill_opacity = 0.2,
-      fill_color = "purple",
-      fill_outline_color = "#460072",
+      fill_opacity = 0.8,
+      fill_color = "#a020f019",
+      fill_outline_color = "#31004f",
+      hover_options = list(fill_opacity = 0.3),
       tooltip = mapgl::concat(
         "Name: ",
         mapgl::get_column("primary")
-      )
+      ),
+      ...
     )
 }
 
@@ -47,10 +52,10 @@ add_counties <- function(map) {
       id = "county_layer",
       source = "county_source",
       source_layer = "counties",
-      fill_opacity = 0.2,
+      fill_opacity = 0.8,
       fill_outline_color = "#460072",
-
-      fill_color = "purple",
+      fill_color = "#a020f019",
+      hover_options = list(fill_opacity = 0.3),
       tooltip = mapgl::concat(
         "Name: ",
         mapgl::get_column("primary")
@@ -73,8 +78,9 @@ add_tracts <- function(map) {
       source = "tract_source",
       source_layer = tract_layer_name,
       fill_outline_color = "#460072",
-      fill_opacity = 0.2,
-      fill_color = "purple",
+      fill_opacity = 0.8,
+      fill_color = "#a020f019",
+      hover_options = list(fill_opacity = 0.3),
       tooltip = mapgl::concat(
         "County: ",
         mapgl::get_column("COUNTY"),
@@ -125,7 +131,7 @@ add_hillshade_source <- function(
 ) {
   map <- map |>
     add_raster_source(
-      id = "natgeo",
+      id = "natgeo_source",
       tiles = "https://server.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer/tile/{z}/{y}/{x}.png",
       tileSize = 256,
       maxzoom = 19
@@ -144,6 +150,7 @@ add_hillshade <- function(
   map,
   terrain = FALSE,
   exaggeration = 1,
+  visibility = "none",
   key = Sys.getenv("MAPTILER_API_KEY")
 ) {
   map <- map |>
@@ -152,7 +159,7 @@ add_hillshade <- function(
       type = "hillshade",
       source = "hillshadeSource",
       "layout" = list(
-        "visibility" = "visible"
+        "visibility" = visibility
       ),
       "paint" = list(
         "hillshade-shadow-color" = "#473B24"
