@@ -68,6 +68,18 @@ Smaller areas will be faster to compute!  Zoom in further to show richness with 
       actionLink("clear_richness", "🧹 clear richness")
     ),
 
+    card(
+      card_header("Resolution"),
+      sliderInput(
+        "resolution",
+        NULL,
+        min = 1,
+        max = 15,
+        value = 2,
+        step = 1
+      )
+    ),
+
     br(),
     input_switch("toggle_natgeo", "natgeo", value = TRUE),
     input_switch("hillshade_basemap", "hillshade", value = FALSE),
@@ -195,7 +207,7 @@ server <- function(input, output, session) {
     # we can react right away, computing richness and updating map
     gdf <- get_richness(
       poly = get_active_feature(input),
-      zoom = as.integer(input$map_zoom),
+      zoom = as.integer(input$resolution),
       taxa_selections = taxa_selected
     )
 
@@ -313,6 +325,12 @@ server <- function(input, output, session) {
         set_layout_property("natgeo_layer", "visibility", "visible")
     }
   })
+
+  # Update resolution slider to match map zoom
+  observeEvent(input$map_zoom, {
+    updateSliderInput(session, "resolution", value = input$map_zoom)
+  })
+
   observeEvent(input$basemap, {
     # doesn't toggle here but works in debug, hmm
     if (input$basemap == "natgeo") {
