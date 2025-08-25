@@ -20,6 +20,7 @@ source("data-layers.R")
 source("utils.R")
 source("llm-gbif.R")
 source("tools.R")
+source("taxa-filter.R")
 
 MAXZOOM <- 9
 duckdb_secrets()
@@ -65,7 +66,18 @@ Smaller areas will be faster to compute!  Zoom in further to show richness with 
 
     card(
       card_header("Biodiversity"),
-      chat_ui("chat", placeholder = "hummingbirds"),
+      # chat_ui("chat", placeholder = "hummingbirds"),
+      fluidRow(
+        # Taxonomic selector card
+        column(
+          width = 4,
+          taxonomicSelectorCard(
+            "taxa_selector",
+            "Select Taxa",
+            include_reset = TRUE
+          )
+        )
+      ),
       actionLink("clear_richness", "🧹 clear richness")
     ),
 
@@ -112,6 +124,8 @@ server <- function(input, output, session) {
   taxa_filter <- reactiveVal(NULL) # active species filter (list)
   active_feature <- reactiveVal(NULL) # active polygon
   selected_feature <- reactiveVal(NULL)
+
+  taxa_selections <- taxonomicSelectorServer("taxa_selector")
 
   # Waterfall strategy to determine feature selection:
   get_active_feature <- function(input) {

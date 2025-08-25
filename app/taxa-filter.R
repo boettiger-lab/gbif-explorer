@@ -92,8 +92,6 @@ taxonomicSelectorUI <- function(
             )
           )
         )
-          )
-        )
       )
     )
   }
@@ -154,13 +152,13 @@ taxonomicSelectorServer <- function(id) {
       })
     })
 
-    # Simple reset
+    # Reset button - refresh the whole app
     observeEvent(input$reset, {
-      updateSelectInput(session, "kingdom", selected = "")
+      session$reload()
     })
 
     # Filter button action - return a reactive that signals when to apply filter
-    filter_trigger <- reactiveVal(NULL)
+    filter_trigger <- reactiveVal(0)
     observeEvent(input$apply_filter, {
       filter_trigger(filter_trigger() + 1)
     })
