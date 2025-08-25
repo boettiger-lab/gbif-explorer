@@ -17,7 +17,7 @@ add_countries <- function(map, ...) {
       fill_opacity = 0.8,
       fill_color = "#a020f019",
       fill_outline_color = "#460072",
-      hover_options = list(fill_opacity = 0.2),
+      hover_options = list(fill_opacity = 0.2, fill_color = "purple"),
       tooltip = mapgl::concat(
         "Name: ",
         mapgl::get_column("primary")
@@ -36,7 +36,7 @@ add_regions <- function(map, ...) {
       fill_opacity = 0.8,
       fill_color = "#a020f019",
       fill_outline_color = "#31004f",
-      hover_options = list(fill_opacity = 0.3),
+      hover_options = list(fill_opacity = 0.2, fill_color = "purple"),
       tooltip = mapgl::concat(
         "Name: ",
         mapgl::get_column("primary")
@@ -55,7 +55,7 @@ add_counties <- function(map) {
       fill_opacity = 0.8,
       fill_outline_color = "#460072",
       fill_color = "#a020f019",
-      hover_options = list(fill_opacity = 0.3),
+      hover_options = list(fill_opacity = 0.2, fill_color = "purple"),
       tooltip = mapgl::concat(
         "Name: ",
         mapgl::get_column("primary")
@@ -80,7 +80,7 @@ add_tracts <- function(map) {
       fill_outline_color = "#460072",
       fill_opacity = 0.8,
       fill_color = "#a020f019",
-      hover_options = list(fill_opacity = 0.3),
+      hover_options = list(fill_opacity = 0.2, fill_color = "purple"),
       tooltip = mapgl::concat(
         "County: ",
         mapgl::get_column("COUNTY"),

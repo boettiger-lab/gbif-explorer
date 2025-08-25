@@ -4,47 +4,48 @@
   "description": "Schema for LLM response containing taxonomic classification",
   "type": "object",
   "properties": {
+    "rationale": {
+      "type": "string",
+      "description": "description of rationale"
+    },
     "classification": {
       "type": "object",
       "description": "Taxonomic classification as key-value pairs",
       "properties": {
         "kingdom": {
           "type": "string",
-          "description": "Kingdom name (e.g., 'Animalia', 'Plantae')"
+          "description": "Kingdom name (e.g., 'Animalia', 'Plantae'). (optional)"
         },
         "phylum": {
           "type": "string",
-          "description": "Phylum name (e.g., 'Chordata', 'Arthropoda')"
+          "description": "Phylum name (e.g., 'Chordata', 'Arthropoda'). (optional)"
         },
         "class": {
           "type": "string",
-          "description": "Class name (e.g., 'Aves', 'Mammalia')"
+          "description": "Class name (e.g., 'Aves', 'Mammalia'). (optional)"
         },
         "order": {
           "type": "string",
-          "description": "Order name (e.g., 'Passeriformes', 'Primates')"
+          "description": "Order name (e.g., 'Passeriformes', 'Primates'). (optional)"
         },
         "family": {
           "type": "string",
-          "description": "Family name (e.g., 'Corvidae', 'Hominidae')"
+          "description": "Family name (e.g., 'Corvidae', 'Hominidae'). (optional)"
         },
         "genus": {
           "type": "string",
-          "description": "Genus name (e.g., 'Corvus', 'Homo')"
+          "description": "Genus name (e.g., 'Corvus', 'Homo'). (optional)"
         },
         "species": {
           "type": "string",
-          "description": "Species name (e.g., 'Corvus corax', 'Homo sapiens')"
+          "description": "Species name (e.g., 'Corvus corax', 'Homo sapiens'). (optional)"
         }
       },
       "additionalProperties": false,
       "minProperties": 0
     }
   },
-  "required": [
-    "thinking",
-    "classification"
-  ],
+  "required": [],
   "additionalProperties": false,
   "examples": [
     {

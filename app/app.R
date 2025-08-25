@@ -69,14 +69,13 @@ Smaller areas will be faster to compute!  Zoom in further to show richness with 
     ),
 
     br(),
-    input_switch("toggle_natgeo", "natgeo", value = FALSE),
+    input_switch("toggle_natgeo", "natgeo", value = TRUE),
     input_switch("hillshade_basemap", "hillshade", value = FALSE),
     input_switch("toggle_controls", "map controls", value = TRUE),
     radioButtons(
       "basemap",
       "Basemap:",
       choices = list(
-        "national geographic" = "natgeo",
         "light" = carto_style("voyager"),
         "dark" = carto_style("dark-matter"),
         "satellite" = maptiler_style("satellite")
@@ -133,16 +132,16 @@ server <- function(input, output, session) {
   # Set up the map:
   output$map <- renderMaplibre({
     m <- mapgl::maplibre(
-      zoom = 3.5,
+      zoom = 2,
       center = c(-100, 30),
       maxZoom = 9
     )
 
     m <- m |>
-      add_pmtiles_source("tract_source", tract) |>
-      add_pmtiles_source("county_source", counties) |>
-      add_pmtiles_source("region_source", regions) |>
-      add_pmtiles_source("country_source", countries) |>
+      add_pmtiles_source("tract_source", tract, promoteId = "primary") |>
+      add_pmtiles_source("county_source", counties, promoteId = "primary") |>
+      add_pmtiles_source("region_source", regions, promoteId = "primary") |>
+      add_pmtiles_source("country_source", countries, promoteId = "primary") |>
       add_hillshade_source()
 
     m <- m |>
