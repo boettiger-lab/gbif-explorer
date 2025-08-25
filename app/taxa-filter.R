@@ -42,22 +42,28 @@ taxonomicSelectorUI <- function(
 
       if (i == 1) {
         # First rank (kingdom) is always visible
-        selectInput(
-          ns(rank),
-          NULL, # Remove redundant label
-          choices = NULL,
-          selected = NULL
+        div(
+          style = "margin-bottom: 8px;",
+          selectInput(
+            ns(rank),
+            NULL, # Remove redundant label
+            choices = NULL,
+            selected = NULL
+          )
         )
       } else {
         # Subsequent ranks are conditional
         prev_rank <- taxonomic_ranks[i - 1]
         conditionalPanel(
           condition = paste0("input['", ns(prev_rank), "'] != ''"),
-          selectInput(
-            ns(rank),
-            NULL, # Remove redundant label
-            choices = NULL,
-            selected = NULL
+          div(
+            style = "margin-bottom: 8px;",
+            selectInput(
+              ns(rank),
+              NULL, # Remove redundant label
+              choices = NULL,
+              selected = NULL
+            )
           )
         )
       }
@@ -69,19 +75,23 @@ taxonomicSelectorUI <- function(
     ui_elements <- append(
       ui_elements,
       list(
-        br(),
-        fluidRow(
-          column(
-            6,
-            actionButton(
-              ns("apply_filter"),
-              "Filter",
-              class = "btn-primary btn-sm"
+        div(
+          style = "margin-top: 10px;",
+          fluidRow(
+            column(
+              6,
+              actionButton(
+                ns("apply_filter"),
+                "Filter",
+                class = "btn-primary btn-sm"
+              )
+            ),
+            column(
+              6,
+              actionButton(ns("reset"), "Reset", class = "btn-warning btn-sm")
             )
-          ),
-          column(
-            6,
-            actionButton(ns("reset"), "Reset", class = "btn-warning btn-sm")
+          )
+        )
           )
         )
       )
