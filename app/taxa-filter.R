@@ -44,7 +44,7 @@ taxonomicSelectorUI <- function(
         # First rank (kingdom) is always visible
         selectInput(
           ns(rank),
-          str_to_title(rank),
+          NULL, # Remove redundant label
           choices = NULL,
           selected = NULL
         )
@@ -55,7 +55,7 @@ taxonomicSelectorUI <- function(
           condition = paste0("input['", ns(prev_rank), "'] != ''"),
           selectInput(
             ns(rank),
-            str_to_title(rank),
+            NULL, # Remove redundant label
             choices = NULL,
             selected = NULL
           )
@@ -106,7 +106,7 @@ taxonomicSelectorServer <- function(id) {
       updateSelectInput(
         session,
         "kingdom",
-        choices = c("Select kingdom..." = "", kingdoms)
+        choices = c("Kingdom..." = "", kingdoms)
       )
     })
 
@@ -124,7 +124,7 @@ taxonomicSelectorServer <- function(id) {
             session,
             next_rank,
             choices = c(
-              setNames("", paste("Select", next_rank, "...")),
+              setNames("", paste(str_to_title(next_rank), "...")),
               sort(choices)
             )
           )

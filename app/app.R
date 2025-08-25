@@ -21,6 +21,7 @@ source("utils.R")
 source("llm-gbif.R")
 source("tools.R")
 
+MAXZOOM <- 9
 duckdb_secrets()
 duckdb_config(threads = 100)
 ui <- page_sidebar(
@@ -74,7 +75,7 @@ Smaller areas will be faster to compute!  Zoom in further to show richness with 
         "resolution",
         NULL,
         min = 1,
-        max = 15,
+        max = MAXZOOM,
         value = 2,
         step = 1
       )
@@ -146,7 +147,7 @@ server <- function(input, output, session) {
     m <- mapgl::maplibre(
       zoom = 2,
       center = c(-100, 30),
-      maxZoom = 9
+      maxZoom = MAXZOOM
     )
 
     m <- m |>
