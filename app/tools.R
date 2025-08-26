@@ -130,8 +130,20 @@ get_richness <- function(
   taxa_selections = list(),
   max_features = getOption("shiny_max_features", 20000L),
   warning = TRUE,
+  verbose = TRUE,
   server = Sys.getenv("AWS_PUBLIC_ENDPOINT", Sys.getenv("AWS_S3_ENDPOINT"))
 ) {
+  if (verbose) {
+    print(paste(
+      "Computing biodiversity for",
+      digest::digest(poly),
+      "at zoom",
+      as.integer(zoom),
+      "for taxa:",
+      paste(taxa_filter(), collapse = ":")
+    ))
+  }
+
   ## This step is memoised (after materializing the poly)
   poly_hexed <- get_h3_aoi(poly, as.integer(zoom))
 

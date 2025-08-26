@@ -281,18 +281,6 @@ server <- function(input, output, session) {
     }
   })
 
-  #logging helper
-  print_selections <- function() {
-    print(paste(
-      "Computing biodiversity for",
-      digest::digest(active_feature()),
-      "at zoom",
-      as.integer(input$resolution),
-      "for taxa:",
-      paste(taxa_filter(), collapse = ":")
-    ))
-  }
-
   observeEvent(input$get_richness, {
     gdf <- get_richness(
       poly = get_active_feature(input),
