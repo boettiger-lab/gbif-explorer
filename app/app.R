@@ -58,6 +58,7 @@ Smaller areas will be faster to compute!  Zoom in further to show richness with 
             ),
             selected = "country_layer"
           ),
+          actionLink("clear_area", "🧹 clear selection"),
           p("")
         )
       )
@@ -116,7 +117,6 @@ server <- function(input, output, session) {
   layer_filter <- reactiveVal(NULL) # active layer filter (maplibre filter)
   taxa_filter <- reactiveVal(NULL) # active species filter (list)
   active_feature <- reactiveVal(NULL) # active polygon
-  selected_feature <- reactiveVal(NULL)
 
   taxa_selections <- taxonomicSelectorServer("taxa_selector")
 
@@ -295,6 +295,16 @@ server <- function(input, output, session) {
 
   observeEvent(input$clear_richness, {
     maplibre_proxy("map") |> clear_layer("richness")
+  })
+
+  observeEvent(input$clear_area, {
+    active_feature(NULL)
+    layer_filter(NULL)
+    updateRadioButtons(
+      session,
+      "layer_selection",
+      selected = "none"
+    )
   })
 
   # Toggle draw controls
