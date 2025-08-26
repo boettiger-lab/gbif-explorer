@@ -249,7 +249,7 @@ server <- function(input, output, session) {
     # Filter next layer to the clicked feature
     if (!is.null(config$next_layer) && !is.null(name)) {
       selected <- x$properties[[config$filter_property]]
-      print(paste("Clicked:", name))
+      print(paste("Clicked:", name, "id:", x$properties$id))
 
       # Hack case: only US has below county_layer
       if (x$layer == "county_layer" && x$properties[["country"]] != "US") {

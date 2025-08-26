@@ -1,5 +1,7 @@
-server <- Sys.getenv("AWS_PUBLIC_ENDPOINT", Sys.getenv("AWS_S3_ENDPOINT"))
-
+SERVER <- Sys.getenv(
+  "AWS_PUBLIC_ENDPOINT",
+  Sys.getenv("AWS_S3_ENDPOINT", "minio.carlboettiger.info")
+)
 get_carbon <- function(
   poly_hexed,
   taxa_selections = list()
@@ -10,7 +12,8 @@ richness_table <- function(
   poly,
   zoom,
   id_column = "id",
-  taxa_selections = list()
+  taxa_selections = list(),
+  server = SERVER
 ) {
   poly_hexed <- get_h3_aoi(poly, precision = zoom, keep_cols = id_column)
 
@@ -51,7 +54,7 @@ get_zonal_richness <- function(
   zoom,
   id_column = "id",
   taxa_selections = list(),
-  server = server
+  server = SERVER
 ) {
   poly_hexed <- get_h3_aoi(poly, precision = zoom, keep_cols = id_column)
   gbif_stats <- get_zonal_richness_(poly_hexed, taxa_selections, server)
@@ -60,7 +63,7 @@ get_zonal_richness <- function(
 get_zonal_richness_ <- function(
   poly_hexed,
   taxa_selections = list(),
-  server = server
+  server = SERVER
 ) {
   hash <- digest::digest(list(poly_hexed, taxa_selections))
   cache <- paste0(
@@ -94,7 +97,7 @@ get_zonal_richness_ <- function(
 get_richness_ <- function(
   poly_hexed,
   taxa_selections = list(),
-  server = server,
+  server = SERVER,
   cache_path = "s3://public-data/gbif-cache/richness/"
 ) {
   hash <- digest::digest(list(poly_hexed, taxa_selections))
@@ -132,7 +135,7 @@ get_richness <- function(
   max_features = getOption("shiny_max_features", 20000L),
   warning = TRUE,
   verbose = TRUE,
-  server = Sys.getenv("AWS_PUBLIC_ENDPOINT", Sys.getenv("AWS_S3_ENDPOINT"))
+  server = SERVER
 ) {
   if (verbose) {
     print(paste(
@@ -152,7 +155,7 @@ get_richness <- function(
   gbif <- get_richness_(
     poly_hexed = poly_hexed,
     taxa_selections = taxa_selections,
-    server
+    server = server
   )
 
   # in-memory gdf will crash above a certain number of hexes
