@@ -105,6 +105,7 @@ get_richness_ <- function(
   )
 
   if (!is_cached(cache)) {
+    print("no cache, computing...")
     # zoom is already determined by poly_hexed
     hexcols <- poly_hexed |> colnames()
     index <- hexcols[2]
@@ -157,6 +158,7 @@ get_richness <- function(
   # in-memory gdf will crash above a certain number of hexes
   if (warning) {
     n_features <- gbif |> count() |> pull(n)
+    print(paste("computed", n_features, "hexes"))
     if (n_features > max_features) {
       warning(paste("returning only first", max_features, "of", n_features))
     }
