@@ -63,21 +63,17 @@ Smaller areas will be faster to compute!  Zoom in further to show richness with 
         )
       )
     ),
-
+    fluidRow(
+      # Taxonomic selector card
+      taxonomicSelectorCard(
+        "taxa_selector",
+        "Select Taxa"
+      )
+    ),
     card(
       card_header("Biodiversity"),
       # chat_ui("chat", placeholder = "hummingbirds"),
-      fluidRow(
-        # Taxonomic selector card
-        column(
-          width = 4,
-          taxonomicSelectorCard(
-            "taxa_selector",
-            "Select Taxa",
-            include_reset = TRUE
-          )
-        )
-      ),
+      actionLink("get_richness", "🐦 richness"),
       actionLink("clear_richness", "🧹 clear richness")
     ),
 
@@ -126,7 +122,13 @@ server <- function(input, output, session) {
   selected_feature <- reactiveVal(NULL)
 
   taxa_selections <- taxonomicSelectorServer("taxa_selector")
-
+  
+  # React to changes in taxonomic selections
+  observe({
+    selections <- taxa_selections$selections()
+    print(paste("Taxa selections updated:", paste(names(selections), selections, sep = "=", collapse = ", ")))
+    taxa_filter(selections)
+  })
   # Waterfall strategy to determine feature selection:
   get_active_feature <- function(input) {
     gdf <- active_feature()

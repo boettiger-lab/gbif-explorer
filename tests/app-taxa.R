@@ -3,9 +3,11 @@
 
 library(duckdbfs)
 library(tidyverse)
+library(dplyr)
 library(glue)
 library(shiny)
 library(bslib)
+library(stringr)
 
 taxonomic_ranks <- c(
   "kingdom",
@@ -35,8 +37,7 @@ child_taxa <- function(parent_rank = "kingdom", parent_name = "Animalia") {
 # Module UI function
 taxonomicSelectorUI <- function(
   id,
-  title = "Select Taxonomic Level",
-  include_reset = TRUE
+  title = "Select Taxonomic Level"
 ) {
   # Define taxonomic hierarchy
 
@@ -78,32 +79,6 @@ taxonomicSelectorUI <- function(
       }
     })
   )
-
-  # Add reset button if requested
-  if (include_reset) {
-    ui_elements <- append(
-      ui_elements,
-      list(
-        div(
-          style = "margin-top: 10px;",
-          fluidRow(
-            column(
-              6,
-              actionButton(
-                ns("apply_filter"),
-                "Filter",
-                class = "btn-primary btn-sm"
-              )
-            ),
-            column(
-              6,
-              actionButton(ns("reset"), "Reset", class = "btn-warning btn-sm")
-            )
-          )
-        )
-      )
-    )
-  }
 
   # Return the UI elements
   ui_elements
@@ -161,18 +136,7 @@ taxonomicSelectorServer <- function(id) {
       })
     })
 
-    # Reset button - refresh the whole app
-    observeEvent(input$reset, {
-      session$reload()
-    })
-
-    # Filter button action - return a reactive that signals when to apply filter
-    filter_trigger <- reactiveVal(0)
-    observeEvent(input$apply_filter, {
-      filter_trigger(filter_trigger() + 1)
-    })
-
-    # Return reactive values containing current selections and filter trigger
+    # Return reactive values containing current selections
     return(
       list(
         selections = reactive({
@@ -186,8 +150,7 @@ taxonomicSelectorServer <- function(id) {
 
           # Remove NULL values and return as named list
           selections[!sapply(selections, is.null)]
-        }),
-        filter_trigger = reactive(filter_trigger())
+        })
       )
     )
   })
@@ -196,14 +159,13 @@ taxonomicSelectorServer <- function(id) {
 # Helper function to create a card wrapper
 taxonomicSelectorCard <- function(
   id,
-  title = "Taxonomic Selector",
-  include_reset = TRUE
+  title = "Taxonomic Selector"
 ) {
   div(
     class = "card",
     div(
       class = "card-body",
-      taxonomicSelectorUI(id, title, include_reset)
+      taxonomicSelectorUI(id, title)
     )
   )
 }
@@ -247,8 +209,7 @@ ui <- fluidPage(
       width = 4,
       taxonomicSelectorCard(
         "taxa_selector",
-        "Select Taxa",
-        include_reset = TRUE
+        "Select Taxa"
       )
     ),
 
