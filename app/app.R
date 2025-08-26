@@ -122,11 +122,14 @@ server <- function(input, output, session) {
   selected_feature <- reactiveVal(NULL)
 
   taxa_selections <- taxonomicSelectorServer("taxa_selector")
-  
+
   # React to changes in taxonomic selections
   observe({
     selections <- taxa_selections$selections()
-    print(paste("Taxa selections updated:", paste(names(selections), selections, sep = "=", collapse = ", ")))
+    print(paste(
+      "Taxa selections updated:",
+      paste(names(selections), selections, sep = "=", collapse = ", ")
+    ))
     taxa_filter(selections)
   })
   # Waterfall strategy to determine feature selection:
@@ -214,7 +217,7 @@ server <- function(input, output, session) {
   observeEvent(input$chat_user_input, {
     taxa_selected <- txt_to_taxa(input$chat_user_input)
 
-    resp <- bot_response(taxa_selected, input$map_zoom)
+    resp <- bot_response(taxa_selected, input$resolution)
     print(resp)
     chat_append("chat", resp)
 
@@ -284,7 +287,7 @@ server <- function(input, output, session) {
       "Computing biodiversity for",
       digest::digest(active_feature()),
       "at zoom",
-      as.integer(input$map_zoom),
+      as.integer(input$resolution),
       "for taxa:",
       paste(taxa_filter(), collapse = ":")
     ))
@@ -293,7 +296,7 @@ server <- function(input, output, session) {
   observeEvent(input$get_richness, {
     gdf <- get_richness(
       poly = get_active_feature(input),
-      zoom = as.integer(input$map_zoom),
+      zoom = as.integer(input$resolution),
       taxa_selections = taxa_filter()
     )
 
