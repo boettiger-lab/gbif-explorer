@@ -22,7 +22,7 @@ source("llm-gbif.R")
 source("tools.R")
 source("taxa-filter.R")
 
-MAXZOOM <- 9
+MAXZOOM <- 10
 duckdb_secrets()
 duckdb_config(threads = 100)
 ui <- page_sidebar(
@@ -38,7 +38,6 @@ Smaller areas will be faster to compute!  Zoom in further to show richness with 
 "
   ),
   shinybusy::add_busy_spinner("fading-circle"),
-
   sidebar = sidebar(
     width = 300,
     card(
@@ -76,7 +75,6 @@ Smaller areas will be faster to compute!  Zoom in further to show richness with 
       actionLink("get_richness", "🐦 richness"),
       actionLink("clear_richness", "🧹 clear richness")
     ),
-
     card(
       card_header("Resolution"),
       sliderInput(
@@ -88,7 +86,6 @@ Smaller areas will be faster to compute!  Zoom in further to show richness with 
         step = 1
       )
     ),
-
     br(),
     input_switch("toggle_natgeo", "natgeo", value = TRUE),
     input_switch("hillshade_basemap", "hillshade", value = FALSE),
