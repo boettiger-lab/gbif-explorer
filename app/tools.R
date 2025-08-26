@@ -140,7 +140,7 @@ get_richness <- function(
       "at zoom",
       as.integer(zoom),
       "for taxa:",
-      paste(taxa_filter(), collapse = ":")
+      paste(taxa_selections, collapse = ":")
     ))
   }
 
