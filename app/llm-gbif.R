@@ -1,4 +1,8 @@
 library(ellmer)
+library(duckdbfs)
+library(glue)
+library(memoise)
+
 # Function that returns the LLM's reasoning process
 
 # NOTE -- currently does not remember chat context! be sure to
@@ -109,10 +113,9 @@ llm_setup <- function(chat_session) {
 taxa_chat <- llm_setup(llm_model)
 
 txt_to_taxa_ <- function(
-  user_request,
-  chat_session = taxa_chat,
-  thinking = FALSE
-) {
+    user_request,
+    chat_session = taxa_chat,
+    thinking = FALSE) {
   answer <- known_queries(user_request)
   if (answer$known) {
     return(answer$classification)
@@ -125,7 +128,7 @@ txt_to_taxa_ <- function(
     user_prompt <- paste("/nothink", user_prompt)
   }
 
-  parser <- type_from_schema(path = "classification-schema.json")
+  parser <- ellmer::type_from_schema(path = "classification-schema.json")
 
   # Now chat with the tool available
   resp <- chat_session$chat_structured(

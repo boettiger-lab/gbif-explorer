@@ -2,14 +2,16 @@
 sf_to_lazy <- function(gdf) {
   if (inherits(gdf, "sf")) {
     hash <- digest::digest(gdf)
-    tmp <- file.path(tempdir(), paste0(hash, ".fgb"))
+    tmp <- file.path(tempdir(), paste0(hash, ".geojson"))
     if (!file.exists(tmp)) {
       sf::st_write(gdf, tmp, quiet = FALSE)
     }
-    gdf <- duckdbfs::open_dataset(tmp)
+    gdf <- duckdbfs::open_dataset(tmp, format = "sf")
   } else {
     # materialize it enough to get hash
-    hash <- gdf |> duckdbfs::to_sf() |> digest::digest()
+    hash <- gdf |>
+      duckdbfs::to_sf() |>
+      digest::digest()
   }
   list(gdf = gdf, hash = hash)
 }
@@ -17,13 +19,12 @@ sf_to_lazy <- function(gdf) {
 # FIXME Debug testing:
 # Can get_h3_aoi return no hexes, e.g. point geom,
 get_h3_aoi <- function(
-  aoi,
-  precision = 6L,
-  h3_column = NULL,
-  keep_cols = NULL,
-  uppercase = TRUE,
-  cache_path = "s3://public-data/gbif-cache/aoi/"
-) {
+    aoi,
+    precision = 6L,
+    h3_column = NULL,
+    keep_cols = NULL,
+    uppercase = TRUE,
+    cache_path = "s3://public-data/gbif-cache/aoi/") {
   ## IF aoi is lazy already, we can get_h3_aoi without serializing to fgb.
   ## But we want to materialize it just to get the object hash
   x <- sf_to_lazy(aoi)
@@ -49,12 +50,11 @@ get_h3_aoi <- function(
 }
 
 get_h3_aoi_ <- function(
-  aoi,
-  precision = 6L,
-  h3_column = NULL,
-  keep_cols = NULL,
-  uppercase = TRUE
-) {
+    aoi,
+    precision = 6L,
+    h3_column = NULL,
+    keep_cols = NULL,
+    uppercase = TRUE) {
   # can't compute digest if aoi is lazy
 
   index <- as.integer(0L) # index for h0-partitioned data
@@ -112,9 +112,8 @@ get_h3_aoi_ <- function(
 
 
 open_gbif_partition <- function(
-  subset,
-  server = Sys.getenv("AWS_PUBLIC_ENDPOINT", Sys.getenv("AWS_S3_ENDPOINT"))
-) {
+    subset,
+    server = Sys.getenv("AWS_PUBLIC_ENDPOINT", Sys.getenv("AWS_S3_ENDPOINT"))) {
   if (length(subset) < 1) {
     return(open_dataset(glue("s3://public-gbif/hex/"), tblname = "gbif"))
   }
@@ -128,10 +127,11 @@ open_gbif_partition <- function(
 }
 
 open_gbif_region <- function(
-  poly_hexed,
-  server = Sys.getenv("AWS_PUBLIC_ENDPOINT", Sys.getenv("AWS_S3_ENDPOINT"))
-) {
-  subset <- poly_hexed |> distinct(h0) |> pull()
+    poly_hexed,
+    server = Sys.getenv("AWS_PUBLIC_ENDPOINT", Sys.getenv("AWS_S3_ENDPOINT"))) {
+  subset <- poly_hexed |>
+    distinct(h0) |>
+    pull()
   gbif <- open_gbif_partition(subset, server)
 
   return(gbif)
@@ -220,7 +220,9 @@ is_empty <- function(df) {
     return(TRUE)
   }
   if (inherits(df, "tbl_lazy")) {
-    df <- df |> head(1) |> dplyr::collect()
+    df <- df |>
+      head(1) |>
+      dplyr::collect()
   }
   if (nrow(df) < 1) {
     return(TRUE)

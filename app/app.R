@@ -192,6 +192,11 @@ server <- function(input, output, session) {
   observeEvent(input$layer_selection, {
     proxy <- maplibre_proxy("map")
 
+    if (input$layer_selection == "none") {
+      active_feature(NULL)
+      layer_filter(NULL)
+    }
+
     # Clear all configured layers
     for (layer_id in names(layer_config)) {
       proxy |> clear_layer(layer_id)

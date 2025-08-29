@@ -3,13 +3,14 @@
 
 library(glue)
 library(mapgl)
-
+library(conflicted)
+conflicts_prefer(mapgl::interpolate)
 
 f <- glue::glue
 server <- Sys.getenv("AWS_PUBLIC_ENDPOINT", Sys.getenv("AWS_S3_ENDPOINT"))
 countries <- f("https://{server}/public-overturemaps/countries.pmtiles")
 # Look up layer name of PMTiles file so we don't have to manually enter
-#countries_layer_name <- sf::st_layers(paste0("/vsicurl/", countries))$name[1]
+# countries_layer_name <- sf::st_layers(paste0("/vsicurl/", countries))$name[1]
 
 # set popup for more intformation on click
 add_countries <- function(map, ...) {
@@ -69,10 +70,10 @@ add_counties <- function(map) {
 
 # US tracts only.  Maybe use locality from Overture World data
 tract <- "https://minio.carlboettiger.info/public-social-vulnerability/2022/SVI2022_US_tract.pmtiles"
-#suppressWarnings({
+# suppressWarnings({
 # Guess layer name of PMTiles file so we don't have to manually enter
 #  tract_layer_name <- sf::st_layers(paste0("/vsicurl/", tract))$name[1]
-#})
+# })
 tract_layer_name <- "svi"
 
 add_tracts <- function(map) {
@@ -130,9 +131,8 @@ add_richness_2d <- function(map, gdf) {
 
 
 add_hillshade_source <- function(
-  map,
-  key = Sys.getenv("MAPTILER_API_KEY")
-) {
+    map,
+    key = Sys.getenv("MAPTILER_API_KEY")) {
   map <- map |>
     add_raster_source(
       id = "natgeo_source",
@@ -151,12 +151,11 @@ add_hillshade_source <- function(
 }
 
 add_hillshade <- function(
-  map,
-  terrain = FALSE,
-  exaggeration = 1,
-  visibility = "none",
-  key = Sys.getenv("MAPTILER_API_KEY")
-) {
+    map,
+    terrain = FALSE,
+    exaggeration = 1,
+    visibility = "none",
+    key = Sys.getenv("MAPTILER_API_KEY")) {
   map <- map |>
     add_layer(
       id = "hills",

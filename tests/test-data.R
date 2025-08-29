@@ -26,7 +26,7 @@ ex_gdf <- get_richness(
 
 # but lots of h7 hexes match from state polygon.
 lazy_gdf <- activate_from_config(
-  "e905ed8e-1eee-425a-8c97-39bd27287abf", # states later
+  "e905ed8e-1eee-425a-8c97-39bd27287abf", # hawaii
   layer_config$region_layer
 )
 
