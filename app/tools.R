@@ -1,3 +1,5 @@
+conflicts_prefer(dplyr::filter)
+
 SERVER <- Sys.getenv(
   "AWS_PUBLIC_ENDPOINT",
   Sys.getenv("AWS_S3_ENDPOINT", "minio.carlboettiger.info")
@@ -56,8 +58,15 @@ get_zonal_richness <- function(
   taxa_selections = list(),
   server = SERVER
 ) {
+
   poly_hexed <- get_h3_aoi(poly, precision = zoom, keep_cols = id_column)
   gbif_stats <- get_zonal_richness_(poly_hexed, taxa_selections, server)
+
+  # join on id_column to poly
+  poly |> 
+    select(all_of(id_column), geometry) |>
+    inner_join(gbif_stats, by = id_column) |> 
+    duckdbfs::to_sf(crs = 4326)
 }
 
 get_zonal_richness_ <- function(
@@ -83,9 +92,8 @@ get_zonal_richness_ <- function(
       select(taxonkey, !!index) |>
       inner_join(poly_hexed) |>
       distinct() |>
-      count(!!id_col) |>
+      count(.data[[id_col]]) |>
       mutate(logn = log(n), value = logn / max(logn)) |>
-      mutate(geom = h3_cell_to_boundary_wkt(h3id)) |>
       write_dataset(cache)
   }
 

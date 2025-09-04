@@ -247,3 +247,20 @@ bot_response <- function(taxa_selected, zoom) {
   )
   resp
 }
+
+
+# use layer-config to compute child polygons (from geoparquet files)
+# given active duckdb connection to polygon subset, a layer, and layer config
+child_polygons <- function(poly, layer, layer_config) {
+
+  parent <- layer_config[[layer]]
+  children <- layer_config[[parent$next_layer]]
+
+  filter_property <- poly |> pull(all_of(parent$filter_property))
+  filter_column <- parent$filter_column
+  child_poly <-
+    open_dataset(children$parquet) |>
+    filter(.data[[filter_column]] %in% filter_property)
+
+  child_poly
+}

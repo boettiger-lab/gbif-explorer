@@ -73,7 +73,8 @@ Smaller areas will be faster to compute!  Zoom in further to show richness with 
     card(
       card_header("Biodiversity"),
       # chat_ui("chat", placeholder = "hummingbirds"),
-      actionLink("get_richness", "🐦 richness"),
+      actionLink("get_richness", "🐦 richness hexes"),
+      actionLink("get_mean_richness", "🐦 mean richness"),
       actionLink("clear_richness", "🧹 clear richness")
     ),
     card(

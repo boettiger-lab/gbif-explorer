@@ -220,7 +220,10 @@ layer_config <- list(
     add_layer = add_tracts,
     next_layer = NULL,
     clear_filter = FALSE,
-    name_property = "FIPS"
+    name_property = "FIPS",
+    parquet = f(
+      "https://{server}/public-social-vulnerability/2022/SVI2022_US_tract.parquet"
+    )
   ),
   current_drawing = list(
     clear_filter = FALSE,
