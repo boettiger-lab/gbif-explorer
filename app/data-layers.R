@@ -186,16 +186,18 @@ layer_config <- list(
   country_layer = list(
     add_layer = add_countries,
     next_layer = "region_layer",
+    parent_layer = NULL,
     clear_filter = TRUE,
     name_property = "primary",
     filter_column = "country", # column in next layer
-    filter_property = "country",
+    filter_property = "country", # column from which we extract current feature filter
     parquet = f(
       "https://{server}/public-overturemaps/countries.parquet"
     )
   ),
   region_layer = list(
     add_layer = add_regions,
+    parent_layer = "country_layer",
     next_layer = "county_layer",
     clear_filter = FALSE,
     name_property = "primary",
@@ -207,10 +209,11 @@ layer_config <- list(
   ),
   county_layer = list(
     add_layer = add_counties,
+    parent_layer = "region_layer",
     next_layer = "tract_layer",
     clear_filter = FALSE,
     name_property = "primary",
-    filter_column = "COUNTY",
+    filter_column = "COUNTY", # column in next layer (US tracts only)
     filter_property = "primary",
     parquet = f(
       "https://{server}/public-overturemaps/counties.parquet"
@@ -218,11 +221,12 @@ layer_config <- list(
   ),
   tract_layer = list(
     add_layer = add_tracts,
+    parent_layer = "county_layer",
     next_layer = NULL,
     clear_filter = FALSE,
     name_property = "FIPS",
     parquet = f(
-      "https://{server}/public-social-vulnerability/2022/SVI2022_US_tract.parquet"
+      "https://{server}/public-social-vulnerability/2022/svi_tract.parquet"
     )
   ),
   current_drawing = list(

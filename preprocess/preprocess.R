@@ -71,6 +71,14 @@ processx::run(
   )
 )
 
+duckdb_secrets()
+server <- "minio.carlboettiger.info"
+svi_tracts <- glue::glue("https://{server}/public-social-vulnerability/2022/SVI2022_US_tract.parquet")
+duckdbfs::open_dataset(svi_tracts) |>
+  rename(geometry = Shape) |>
+  mutate(id = FIPS) |>
+  write_dataset("s3://public-social-vulnerability/2022/svi_tract.parquet")
+
 
 #duckdbfs::to_sf(gdf, crs = "epsg:4326") |>
 

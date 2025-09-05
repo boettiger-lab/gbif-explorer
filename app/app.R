@@ -295,6 +295,14 @@ server <- function(input, output, session) {
       add_richness(gdf)
   })
 
+  observeEvent(input$get_mean_richness, {
+    poly <- get_active_feature(input)
+    layer <- layer_config[[input$layer_selection]]$parent_layer
+    child_poly <- child_polygons(poly, layer, layer_config)
+    gdf <- get_zonal_richness(child_poly, zoom = as.integer(input$resolution))
+    maplibre_proxy("map")  |> add_richness(gdf)
+  })
+
   observeEvent(input$clear_filters, {
     maplibre_proxy("map") |> set_filter(input$layer_selection, NULL)
   })

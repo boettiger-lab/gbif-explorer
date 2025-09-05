@@ -31,8 +31,6 @@ maplibre(bounds = gdf2) |> add_richness(gdf2)
 ## Let's get child polys first:
 
 child_poly <- child_polygons(poly, layer, layer_config)
-  
-
 gdf3 <- get_zonal_richness(child_poly, zoom = 8L)
 maplibre(bounds = gdf3) |> add_richness(gdf3)
 
