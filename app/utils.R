@@ -205,11 +205,11 @@ geocoder_to_gdf <- function(map_geocoder) {
 # is it okay for this to be lazy?
 activate_from_config <- function(id, config) {
   poly <- duckdbfs::open_dataset(config$parquet)
-
+  id_col <- config$id_property
   # FIXME abstract this into selected_feature() behavior.
-  if ("id" %in% colnames(poly)) {
+  if (id_col %in% colnames(poly)) {
     poly <- poly |>
-      dplyr::filter(.data[["id"]] == !!id)
+      dplyr::filter(.data[[id_col]] == !!id)
   }
 
   return(poly)

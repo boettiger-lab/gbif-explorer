@@ -52,8 +52,8 @@ Smaller areas will be faster to compute!  Zoom in further to show richness with 
               "Countries" = "country_layer",
               "States" = "region_layer",
               "Counties" = "county_layer",
-              "Tracts" = "tract_layer"
-              #         "Protected Areas" = "park_layer",
+              "Tracts" = "tract_layer",
+              "Protected Areas" = "pad_layer"
               #         "US fires" = "fire_layer",
             ),
             selected = "country_layer"
@@ -172,6 +172,7 @@ server <- function(input, output, session) {
       add_pmtiles_source("county_source", counties, promoteId = "primary") |>
       add_pmtiles_source("region_source", regions, promoteId = "primary") |>
       add_pmtiles_source("country_source", countries, promoteId = "primary") |>
+      add_pmtiles_source("pad_source", pad_us_4, promoteId = "Unit_Nm") |>
       add_hillshade_source()
 
     m <- m |>
@@ -213,7 +214,19 @@ server <- function(input, output, session) {
     if (config$clear_filter) {
       layer_filter(NULL)
     }
-    proxy |> set_filter(input$layer_selection, layer_filter())
+
+    ## HACK: use an initial layer filter for PAD_US:
+    if(input$layer_selection == "pad_layer" && is.null(layer_filter())) {
+      pad_gap12_filter <- list("in", 
+                               list("get", "GAP_Sts"),
+                               list("literal", c("1", "2")))
+
+      layer_filter(pad_gap12_filter)
+    }
+
+
+    ## FIXME layer_filter should know what layer it applies to!
+    proxy |> mapgl::set_filter(input$layer_selection, layer_filter())
   })
 
   # Observe chat input
@@ -252,7 +265,8 @@ server <- function(input, output, session) {
     # Filter next layer to the clicked feature
     if (!is.null(config$next_layer) && !is.null(name)) {
       selected <- x$properties[[config$filter_property]]
-      print(paste("Clicked:", name, "id:", x$properties$id))
+      id <- x$properties[[config$id_property]]
+      print(paste("Clicked:", name, "id:", id, "selected:", selected))
 
       # Hack case: only US has below county_layer
       if (x$layer == "county_layer" && x$properties[["country"]] != "US") {
@@ -267,6 +281,12 @@ server <- function(input, output, session) {
         selected
       ))
 
+      # If we are not changing layers, we can apply the filter now:
+      # FIXME this is a bit hacky.  The above does not actually require a next_layer.  
+      if(config$next_layer == input$layer_selection) {
+        maplibre_proxy("map") |> set_filter(input$layer_selection, layer_filter())
+      }
+
       # fly_to, jump_to, or ease_to ?
       maplibre_proxy("map") |>
         fly_to(zoom = input$map_zoom + 1, center = c(x$lng, x$lat))
@@ -279,7 +299,7 @@ server <- function(input, output, session) {
       )
 
       # Set this as the active selection
-      lazy_gdf <- activate_from_config(x$properties$id, config)
+      lazy_gdf <- activate_from_config(id, config)
       active_feature(lazy_gdf) # can a lazy feature be global var?
     }
   })

@@ -123,3 +123,8 @@ overture_pmtiles_is_messed_up <- function() {
       )
     )
 }
+
+
+
+df <- open_dataset("https://minio.carlboettiger.info/public-biodiversity/pad-us-4/pad-us-4.parquet")
+df

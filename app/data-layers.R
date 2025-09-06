@@ -12,6 +12,9 @@ countries <- f("https://{server}/public-overturemaps/countries.pmtiles")
 # Look up layer name of PMTiles file so we don't have to manually enter
 # countries_layer_name <- sf::st_layers(paste0("/vsicurl/", countries))$name[1]
 
+
+# Should we add layers or just toggle layer visiblity?  
+
 # set popup for more intformation on click
 add_countries <- function(map, ...) {
   map |>
@@ -96,6 +99,52 @@ add_tracts <- function(map) {
       )
     )
 }
+
+# Guess layer name of PMTiles file so we don't have to manually enter
+
+pad_us_4 <- "https://minio.carlboettiger.info/public-biodiversity/pad-us-4/pad-us-4.pmtiles"
+# layer_name <- sf::st_layers(paste0("/vsicurl/", pad_us_4))$name[1]
+manager_fill_color = mapgl::match_expr(
+    column = "Mang_Type",
+    values = c("JNT", "TERR", "STAT", "FED", "UNK", "LOC", "PVT", "DIST", "TRIB", "NGO"),
+    stops = c("#DAB0AE", "#A1B03D", "#A1B03D",  "#529642", "#bbbbbb",
+              "#365591", "#7A3F1A", "#0096FF", "#BF40BF", "#D77031"),
+    default = "#D3D3D3"
+)
+gap_fill_color = mapgl::match_expr(
+    column = "GAP_Sts",
+    values = c("1", "2", "3", "4"),
+    stops = c("#26633d", "#879647", "#bdcf72", "#6d6e6d"),
+    default = "#D3D3D3"
+)
+
+
+add_pad <- function(map, ...) {
+  map |>
+    mapgl::add_fill_layer(
+      id = "pad_layer",
+      source = "pad_source",
+      source_layer = "padus4",
+      fill_opacity = 0.6,
+      fill_color = gap_fill_color,
+      filter = list("in", list("get", "GAP_Sts"), list("literal", c("1", "2"))),
+      hover_options = list(fill_opacity = 0.2, fill_color = "purple"),
+      tooltip = mapgl::concat(
+        "Name: ",
+        mapgl::get_column("Unit_Nm"),
+        "<br/>Manager: ",
+        mapgl::get_column("Mang_Name"),
+        "<br/>Type: ",
+        mapgl::get_column("Mang_Type"),
+        "<br/>Class: ",
+        mapgl::get_column("FeatClass"),
+        "<br/>id: ",
+        mapgl::get_column("row_n")      
+      ),
+      ...
+    )
+}
+
 
 add_richness <- function(map, gdf, n_stops = 7) {
   map |>
@@ -185,6 +234,7 @@ current_drawing_parquet <- file.path(tempdir(), "current_drawing.parquet")
 layer_config <- list(
   country_layer = list(
     add_layer = add_countries,
+    id_property = "id",
     next_layer = "region_layer",
     parent_layer = NULL,
     clear_filter = TRUE,
@@ -197,6 +247,7 @@ layer_config <- list(
   ),
   region_layer = list(
     add_layer = add_regions,
+    id_property = "id",
     parent_layer = "country_layer",
     next_layer = "county_layer",
     clear_filter = FALSE,
@@ -209,6 +260,7 @@ layer_config <- list(
   ),
   county_layer = list(
     add_layer = add_counties,
+    id_property = "id",
     parent_layer = "region_layer",
     next_layer = "tract_layer",
     clear_filter = FALSE,
@@ -221,6 +273,7 @@ layer_config <- list(
   ),
   tract_layer = list(
     add_layer = add_tracts,
+    id_property = "id",
     parent_layer = "county_layer",
     next_layer = NULL,
     clear_filter = FALSE,
@@ -229,10 +282,26 @@ layer_config <- list(
       "https://{server}/public-social-vulnerability/2022/svi_tract.parquet"
     )
   ),
+
+  # Consider WDPA as well.  Download update!
+  pad_layer = list(
+    add_layer = add_pad,
+    clear_filter = FALSE,
+    next_layer = "pad_layer", # stays on this layer
+    name_property = "Unit_Nm",
+    filter_column = "row_n", # column 
+    filter_property = "row_n",
+    id_property = "row_n",
+    parquet = f("https://{server}/public-biodiversity/pad-us-4/pad-us-4.parquet")
+  ),
+  
+  # not implemented yet. Allow user to select drawing from layer selection
   current_drawing = list(
     clear_filter = FALSE,
     parquet = current_drawing_parquet
   ),
+
+  # selecting none
   none = list(add_layer = function(map, ...) map, clear_filter = TRUE)
 )
 # Should richness be included?
