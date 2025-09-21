@@ -16,11 +16,17 @@ library(mapgl)
 library(stringr)
 library(jsonlite)
 library(glue)
+
+duckdbfs::load_h3()
+duckdbfs::load_spatial()
+
 source("data-layers.R")
+source("hex-tools.R")
 source("utils.R")
 source("llm-gbif.R")
 source("tools.R")
 source("taxa-filter.R")
+
 
 MAXZOOM <- 10
 duckdb_secrets()
@@ -216,14 +222,15 @@ server <- function(input, output, session) {
     }
 
     ## HACK: use an initial layer filter for PAD_US:
-    if(input$layer_selection == "pad_layer" && is.null(layer_filter())) {
-      pad_gap12_filter <- list("in", 
-                               list("get", "GAP_Sts"),
-                               list("literal", c("1", "2")))
+    if (input$layer_selection == "pad_layer" && is.null(layer_filter())) {
+      pad_gap12_filter <- list(
+        "in",
+        list("get", "GAP_Sts"),
+        list("literal", c("1", "2"))
+      )
 
       layer_filter(pad_gap12_filter)
     }
-
 
     ## FIXME layer_filter should know what layer it applies to!
     proxy |> mapgl::set_filter(input$layer_selection, layer_filter())
@@ -282,9 +289,10 @@ server <- function(input, output, session) {
       ))
 
       # If we are not changing layers, we can apply the filter now:
-      # FIXME this is a bit hacky.  The above does not actually require a next_layer.  
-      if(config$next_layer == input$layer_selection) {
-        maplibre_proxy("map") |> set_filter(input$layer_selection, layer_filter())
+      # FIXME this is a bit hacky.  The above does not actually require a next_layer.
+      if (config$next_layer == input$layer_selection) {
+        maplibre_proxy("map") |>
+          set_filter(input$layer_selection, layer_filter())
       }
 
       # fly_to, jump_to, or ease_to ?
@@ -320,7 +328,7 @@ server <- function(input, output, session) {
     layer <- layer_config[[input$layer_selection]]$parent_layer
     child_poly <- child_polygons(poly, layer, layer_config)
     gdf <- get_zonal_richness(child_poly, zoom = as.integer(input$resolution))
-    maplibre_proxy("map")  |> add_richness(gdf)
+    maplibre_proxy("map") |> add_richness(gdf)
   })
 
   observeEvent(input$clear_filters, {

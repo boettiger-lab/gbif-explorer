@@ -5,6 +5,7 @@ library(sf)
 library(spData)
 library(mapgl)
 library(glue)
+source("app/hex-tools.R")
 source("app/utils.R")
 source("app/data-layers.R")
 source("app/tools.R")
@@ -16,6 +17,9 @@ ex <- activate_from_config(
   layer_config$county_layer
 )
 ex_hexed <- get_h3_aoi(ex, 7) # plenty of hits
+
+get_carbon(ex)
+
 
 ex_gdf <- get_richness(
   # WEIRD!  only one h7 hex finds a match

@@ -1,13 +1,125 @@
-conflicts_prefer(dplyr::filter)
+conflicted::conflicts_prefer(dplyr::filter)
 
-SERVER <- Sys.getenv(
-  "AWS_PUBLIC_ENDPOINT",
-  Sys.getenv("AWS_S3_ENDPOINT", "minio.carlboettiger.info")
-)
-get_carbon <- function(
+SERVER <- Sys.getenv("AWS_S3_ENDPOINT", "minio.carlboettiger.info")
+
+
+open_carbon_partition <- function(
+  subset,
+  server = SERVER
+) {
+  # Fallback case, opens all partitions
+  if (length(subset) < 1) {
+    return(open_dataset(
+      glue("s3://public-carbon/hex/vulnerable-carbon"),
+      tblname = "carbon"
+    ))
+  }
+  # open directly as one or more URLs
+  urls <- paste0(
+    glue("https://{server}/public-carbon/hex/vulnerable-carbon/h0="),
+    subset,
+    "/data_0.parquet"
+  )
+  carbon <- open_dataset(urls, tblname = "carbon")
+}
+
+
+open_carbon_region <- function(
   poly_hexed,
-  taxa_selections = list()
-) {}
+  server = SERVER
+) {
+  poly_hexed <- poly_hexed |>
+    mutate(h0 = tolower(h0), h8 = tolower(h8))
+
+  subset <- poly_hexed |>
+    distinct(h0) |>
+    pull()
+
+  open_carbon_partition(subset, server) |>
+    select(-h0) |>
+    inner_join(poly_hexed, by = "h8")
+}
+
+get_carbon <- function(
+  poly,
+  precision = 8L,
+  id_column = "id",
+  max_features = getOption("shiny_max_features", 20000L),
+  warning = TRUE,
+  verbose = TRUE,
+  server = SERVER
+) {
+  poly_hexed <- get_h3_aoi(poly, precision = precision, keep_cols = id_column)
+  carbon <- open_carbon_region(poly_hexed, server) |>
+    mutate(geom = h3_cell_to_boundary_wkt(h3id)) # could pre-compute
+
+  # in-memory gdf will crash above a certain number of hexes
+  if (warning) {
+    n_features <- carbon |> count() |> pull(n)
+    print(paste("computed", n_features, "hexes"))
+    if (n_features > max_features) {
+      warning(paste("returning only first", max_features, "of", n_features))
+    }
+  }
+
+  carbon <- carbon |>
+    head(max_features) |> # max number of features
+    collect() |>
+    st_as_sf(wkt = "geom", crs = 4326)
+
+  carbon
+}
+
+
+open_gbif_partition <- function(
+  subset,
+  server = Sys.getenv("AWS_PUBLIC_ENDPOINT", Sys.getenv("AWS_S3_ENDPOINT"))
+) {
+  if (length(subset) < 1) {
+    return(open_dataset(glue("s3://public-gbif/hex/"), tblname = "gbif"))
+  }
+
+  urls <- paste0(
+    glue("https://{server}/public-gbif/hex/h0="),
+    subset,
+    "/part0.parquet"
+  )
+  gbif <- open_dataset(urls, tblname = "gbif")
+}
+
+open_gbif_region <- function(
+  poly_hexed,
+  server = Sys.getenv("AWS_PUBLIC_ENDPOINT", Sys.getenv("AWS_S3_ENDPOINT"))
+) {
+  subset <- poly_hexed |>
+    distinct(h0) |>
+    pull()
+  gbif <- open_gbif_partition(subset, server)
+
+  return(gbif)
+}
+
+
+filter_gbif_taxa <- function(gbif, selections) {
+  # If no selections made, return original dataset
+  if (length(selections) == 0) {
+    return(gbif)
+  }
+
+  # Start with the original dataset
+  filtered_gbif <- gbif
+
+  # Apply filters for each selected taxonomic rank
+  for (rank in names(selections)) {
+    if (rank %in% colnames(gbif)) {
+      filtered_gbif <- filtered_gbif |>
+        dplyr::filter(.data[[rank]] == !!selections[[rank]])
+    }
+  }
+
+  return(filtered_gbif)
+}
+
 
 # group by species instead of spatial unit
 richness_table <- function(
@@ -58,14 +170,13 @@ get_zonal_richness <- function(
   taxa_selections = list(),
   server = SERVER
 ) {
-
   poly_hexed <- get_h3_aoi(poly, precision = zoom, keep_cols = id_column)
   gbif_stats <- get_zonal_richness_(poly_hexed, taxa_selections, server)
 
   # join on id_column to poly
-  poly |> 
+  poly |>
     select(all_of(id_column), geometry) |>
-    inner_join(gbif_stats, by = id_column) |> 
+    inner_join(gbif_stats, by = id_column) |>
     duckdbfs::to_sf(crs = 4326)
 }
 
