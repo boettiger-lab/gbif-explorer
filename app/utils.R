@@ -1,22 +1,3 @@
-# cache this somehow?  write to digest of gdf instead of fixed
-sf_to_lazy <- function(gdf) {
-  if (inherits(gdf, "sf")) {
-    hash <- digest::digest(gdf)
-    tmp <- file.path(tempdir(), paste0(hash, ".geojson"))
-    if (!file.exists(tmp)) {
-      sf::st_write(gdf, tmp, quiet = FALSE)
-    }
-    gdf <- duckdbfs::open_dataset(tmp, format = "sf")
-  } else {
-    # materialize it enough to get hash
-    hash <- gdf |>
-      duckdbfs::to_sf() |>
-      digest::digest()
-  }
-  list(gdf = gdf, hash = hash)
-}
-
-
 get_polygon_bbox <- function(bbox) {
   # safe return
   bbox$xmin <- max(bbox$xmin, -178)

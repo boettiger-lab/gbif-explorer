@@ -17,6 +17,8 @@ library(stringr)
 library(jsonlite)
 library(glue)
 
+print(packageVersion("duckdb"))
+
 duckdbfs::load_h3()
 duckdbfs::load_spatial()
 

@@ -1,17 +1,49 @@
-is_cached <- function(s3, recursive = FALSE) {
-  tryCatch(
+is_cached <- function(
+  s3,
+  recursive = FALSE,
+  verbose = getOption("verbose", TRUE)
+) {
+  has_cache <- tryCatch(
     {
+      duckdbfs::load_spatial()
       df <- open_dataset(s3, recursive = recursive)
       inherits(df, "tbl_sql")
     },
     error = function(e) FALSE,
     finally = FALSE
   )
+  if (verbose) {
+    message(paste("cache:", has_cache, s3))
+  }
+  has_cache
 }
 
 
-# FIXME Debug testing:
-# Can get_h3_aoi return no hexes, e.g. point geom,
+# Given an sf object (in RAM), this moves to disk and opens it with duckdb read_geo.
+# Object is hashed in RAM
+# FIXME Consider moving this to duckdbfs & improving performance, this is stupid
+
+# digest is not robust to the roundtripping here
+sf_to_lazy <- function(gdf) {
+  if (inherits(gdf, "sf")) {
+    hash <- digest::digest(gdf)
+    tmp <- file.path(tempdir(), paste0(hash, ".geojson"))
+    if (!file.exists(tmp)) {
+      sf::st_write(gdf, tmp, quiet = FALSE)
+    }
+    duckdbfs::load_spatial()
+    gdf <- duckdbfs::open_dataset(tmp, format = "sf")
+  } else {
+    # materialize it enough to get hash
+    hash <- gdf |>
+      duckdbfs::to_sf() |>
+      digest::digest()
+  }
+  list(gdf = gdf, hash = hash)
+}
+
+
+## Heavyweight bottleneck!
 get_h3_aoi <- function(
   aoi,
   precision = 6L,
@@ -41,6 +73,7 @@ get_h3_aoi <- function(
     get_h3_aoi_(x$gdf, precision, h3_column, keep_cols, uppercase) |>
       duckdbfs::write_dataset(cache)
   }
+  duckdbfs::load_spatial()
   duckdbfs::open_dataset(cache, recursive = FALSE)
 }
 
