@@ -3,8 +3,10 @@
 
 library(glue)
 library(mapgl)
+
 library(conflicted)
-conflicts_prefer(mapgl::interpolate)
+conflicted::conflicts_prefer(mapgl::interpolate, .quiet = TRUE)
+conflicted::conflicts_prefer(dplyr::filter, .quiet = TRUE)
 
 f <- glue::glue
 server <- Sys.getenv("AWS_PUBLIC_ENDPOINT", Sys.getenv("AWS_S3_ENDPOINT"))
@@ -12,8 +14,7 @@ countries <- f("https://{server}/public-overturemaps/countries.pmtiles")
 # Look up layer name of PMTiles file so we don't have to manually enter
 # countries_layer_name <- sf::st_layers(paste0("/vsicurl/", countries))$name[1]
 
-
-# Should we add layers or just toggle layer visiblity?  
+# Should we add layers or just toggle layer visiblity?
 
 # set popup for more intformation on click
 add_countries <- function(map, ...) {
@@ -105,17 +106,38 @@ add_tracts <- function(map) {
 pad_us_4 <- "https://minio.carlboettiger.info/public-biodiversity/pad-us-4/pad-us-4.pmtiles"
 # layer_name <- sf::st_layers(paste0("/vsicurl/", pad_us_4))$name[1]
 manager_fill_color = mapgl::match_expr(
-    column = "Mang_Type",
-    values = c("JNT", "TERR", "STAT", "FED", "UNK", "LOC", "PVT", "DIST", "TRIB", "NGO"),
-    stops = c("#DAB0AE", "#A1B03D", "#A1B03D",  "#529642", "#bbbbbb",
-              "#365591", "#7A3F1A", "#0096FF", "#BF40BF", "#D77031"),
-    default = "#D3D3D3"
+  column = "Mang_Type",
+  values = c(
+    "JNT",
+    "TERR",
+    "STAT",
+    "FED",
+    "UNK",
+    "LOC",
+    "PVT",
+    "DIST",
+    "TRIB",
+    "NGO"
+  ),
+  stops = c(
+    "#DAB0AE",
+    "#A1B03D",
+    "#A1B03D",
+    "#529642",
+    "#bbbbbb",
+    "#365591",
+    "#7A3F1A",
+    "#0096FF",
+    "#BF40BF",
+    "#D77031"
+  ),
+  default = "#D3D3D3"
 )
 gap_fill_color = mapgl::match_expr(
-    column = "GAP_Sts",
-    values = c("1", "2", "3", "4"),
-    stops = c("#26633d", "#879647", "#bdcf72", "#6d6e6d"),
-    default = "#D3D3D3"
+  column = "GAP_Sts",
+  values = c("1", "2", "3", "4"),
+  stops = c("#26633d", "#879647", "#bdcf72", "#6d6e6d"),
+  default = "#D3D3D3"
 )
 
 
@@ -139,7 +161,7 @@ add_pad <- function(map, ...) {
         "<br/>Class: ",
         mapgl::get_column("FeatClass"),
         "<br/>id: ",
-        mapgl::get_column("row_n")      
+        mapgl::get_column("row_n")
       ),
       ...
     )
@@ -180,8 +202,9 @@ add_richness_2d <- function(map, gdf) {
 
 
 add_hillshade_source <- function(
-    map,
-    key = Sys.getenv("MAPTILER_API_KEY")) {
+  map,
+  key = Sys.getenv("MAPTILER_API_KEY")
+) {
   map <- map |>
     add_raster_source(
       id = "natgeo_source",
@@ -200,11 +223,12 @@ add_hillshade_source <- function(
 }
 
 add_hillshade <- function(
-    map,
-    terrain = FALSE,
-    exaggeration = 1,
-    visibility = "none",
-    key = Sys.getenv("MAPTILER_API_KEY")) {
+  map,
+  terrain = FALSE,
+  exaggeration = 1,
+  visibility = "none",
+  key = Sys.getenv("MAPTILER_API_KEY")
+) {
   map <- map |>
     add_layer(
       id = "hills",
@@ -289,12 +313,14 @@ layer_config <- list(
     clear_filter = FALSE,
     next_layer = "pad_layer", # stays on this layer
     name_property = "Unit_Nm",
-    filter_column = "row_n", # column 
+    filter_column = "row_n", # column
     filter_property = "row_n",
     id_property = "row_n",
-    parquet = f("https://{server}/public-biodiversity/pad-us-4/pad-us-4.parquet")
+    parquet = f(
+      "https://{server}/public-biodiversity/pad-us-4/pad-us-4.parquet"
+    )
   ),
-  
+
   # not implemented yet. Allow user to select drawing from layer selection
   current_drawing = list(
     clear_filter = FALSE,

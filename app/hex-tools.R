@@ -74,8 +74,13 @@ get_h3_aoi <- function(
       duckdbfs::write_dataset(cache)
   }
   duckdbfs::load_spatial()
-  duckdbfs::open_dataset(cache, recursive = FALSE)
+
+  ## the result of this cannot be cached, this is a LAZY connection
+  #duckdbfs::open_dataset(cache, recursive = FALSE)
+
+  cache
 }
+
 
 get_h3_aoi_ <- function(
   aoi,

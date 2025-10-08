@@ -330,6 +330,8 @@ server <- function(input, output, session) {
     layer <- layer_config[[input$layer_selection]]$parent_layer
     child_poly <- child_polygons(poly, layer, layer_config)
     gdf <- get_zonal_richness(child_poly, zoom = as.integer(input$resolution))
+
+    print("mapping zonal richness...")
     maplibre_proxy("map") |> add_richness(gdf)
   })
 
