@@ -84,7 +84,8 @@ get_zonal_richness <- function(
   zoom,
   id_column = "id",
   taxa_selections = list(),
-  server = Sys.getenv("AWS_S3_ENDPOINT", "minio.carlboettiger.info")
+  server = Sys.getenv("AWS_S3_ENDPOINT", "minio.carlboettiger.info"),
+  local = FALSE
 ) {
   gbif_stats <- get_zonal_richness_(
     poly,
@@ -95,10 +96,21 @@ get_zonal_richness <- function(
   )
 
   # join on id_column to poly
-  poly |>
+  poly <- poly |>
     dplyr::select(dplyr::all_of(id_column), geometry) |>
     dplyr::inner_join(gbif_stats, by = id_column) |>
-    duckdbfs::to_sf(crs = 4326)
+    rename(geom = "geometry")
+
+  materialize(
+    poly,
+    zoom = zoom,
+    id_column = id_column,
+    local = local,
+    max_features = getOption("shiny_max_features", 20000L),
+    bucket = "public-data/cache/gbif-app",
+    label = "richness",
+    server = "minio.carlboettiger.info"
+  )
 }
 
 get_zonal_richness_ <- function(
@@ -113,7 +125,7 @@ get_zonal_richness_ <- function(
 
   hash <- digest::digest(list(poly_hexed_url, taxa_selections))
   cache <- paste0(
-    "s3://public-data/gbif-cache/zonal_richness/",
+    "s3://public-data/cache/gbif-app/zonal_richness/",
     hash,
     fileext = ".parquet"
   )
@@ -145,7 +157,7 @@ get_richness_ <- function(poly, zoom, id_column, taxa_selections, server) {
 
   hash <- digest::digest(list(poly_hexed_url, taxa_selections))
   cache <- paste0(
-    "s3://public-data/gbif-cache/richness/",
+    "s3://public-data/cache/gbif-app/richness/",
     hash,
     fileext = ".parquet"
   )
@@ -164,7 +176,11 @@ get_richness_ <- function(poly, zoom, id_column, taxa_selections, server) {
       dplyr::rename(h3id = !!index) |>
       dplyr::count(h3id) |>
       dplyr::mutate(logn = log(n), value = logn / max(logn)) |>
-      dplyr::mutate(geom = h3_cell_to_boundary_wkt(h3id)) |>
+      dplyr::mutate(
+        geom = ST_GeomFromText(
+          h3_cell_to_boundary_wkt(h3id)
+        )
+      ) |>
       duckdbfs::write_dataset(cache)
   }
 
@@ -179,7 +195,8 @@ get_richness <- function(
   max_features = getOption("shiny_max_features", 20000L),
   warning = TRUE,
   verbose = TRUE,
-  server = Sys.getenv("AWS_S3_ENDPOINT", "minio.carlboettiger.info")
+  server = Sys.getenv("AWS_S3_ENDPOINT", "minio.carlboettiger.info"),
+  local = FALSE
 ) {
   if (verbose) {
     print(paste(
@@ -209,11 +226,42 @@ get_richness <- function(
       warning(paste("returning only first", max_features, "of", n_features))
     }
   }
+  materialize(
+    gbif,
+    zoom = zoom,
+    id_column = id_column,
+    local = local,
+    max_features = max_features,
+    bucket = "public-data/cache/gbif-app",
+    label = "richness",
+    server = "minio.carlboettiger.info"
+  )
+}
 
-  gbif <- gbif |>
-    head(max_features) |> # max number of features
-    dplyr::collect() |>
-    sf::st_as_sf(wkt = "geom", crs = 4326)
+materialize <- function(
+  gdf,
+  zoom,
+  id_column,
+  local = FALSE,
+  max_features = getOption("shiny_max_features", 20000L),
+  bucket = "public-data/cache/gbif-app",
+  label = "richness",
+  server = "minio.carlboettiger.info"
+) {
+  if (is.null(local)) {
+    return(gdf)
+  }
 
-  gbif
+  if (local) {
+    gdf <- gdf |>
+      head(max_features) |> # max number of features
+      duckdbfs::to_sf(crs = 4326)
+  } else {
+    hash <- digest::digest(list(gdf, zoom, id_column, label))
+    s3 <- glue::glue("s3://{bucket}/{label}/{hash}.geojson")
+
+    gdf |> duckdbfs::to_geojson(s3)
+    gdf <- gsub("s3://", glue::glue("https://{server}/"), s3)
+  }
+  gdf
 }

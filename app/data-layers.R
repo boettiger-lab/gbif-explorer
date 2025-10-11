@@ -9,7 +9,9 @@ conflicted::conflicts_prefer(mapgl::interpolate, .quiet = TRUE)
 conflicted::conflicts_prefer(dplyr::filter, .quiet = TRUE)
 
 f <- glue::glue
-server <- Sys.getenv("AWS_PUBLIC_ENDPOINT", Sys.getenv("AWS_S3_ENDPOINT"))
+server <- Sys.getenv("AWS_S3_ENDPOINT")
+
+
 countries <- f("https://{server}/public-overturemaps/countries.pmtiles")
 # Look up layer name of PMTiles file so we don't have to manually enter
 # countries_layer_name <- sf::st_layers(paste0("/vsicurl/", countries))$name[1]
@@ -168,11 +170,18 @@ add_pad <- function(map, ...) {
 }
 
 
-add_richness <- function(map, gdf, n_stops = 7) {
+# use `set_layer("richness", url)` to toggle
+# layer will start blank if gdf=server
+richness_layer <- function(
+  map,
+  gdf = "https://minio.carlboettiger.info",
+  n_stops = 7
+) {
   map |>
+    mapgl::add_source("richness_source", gdf) |>
     mapgl::add_fill_extrusion_layer(
       id = "richness",
-      source = gdf,
+      source = "richness_source",
       tooltip = concat("Richness:", mapgl::get_column("n")),
       fill_extrusion_color = mapgl::interpolate(
         column = "value",

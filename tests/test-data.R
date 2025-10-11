@@ -2,15 +2,15 @@ library(duckdbfs)
 library(dplyr)
 library(dbplyr)
 library(sf)
-library(spData)
 library(mapgl)
 library(glue)
 source("app/hex-tools.R")
 source("app/utils.R")
 source("app/data-layers.R")
-source("app/tools.R")
+source("app/tools-carbon.R")
+source("app/tools-richness.R")
 duckdb_secrets()
-
+load_spatial()
 
 ex <- activate_from_config(
   "0da365a8-6973-41be-a156-2345a7d0f706", # honolulu

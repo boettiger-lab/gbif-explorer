@@ -25,21 +25,6 @@ USA <- layer_config$country$parquet |>
   child_polygons("country_layer", layer_config) |>
   get_zonal_richness(5L)
 
-gdf_to_s3 <- function(
-  gdf,
-  bucket = "public-data",
-  path = "cache/gbif-app/richness",
-  server = Sys.getenv("AWS_S3_ENDPOINT", 'minio.carlboettiger.info')
-) {
-  hash <- digest::digest(gdf)
-  dest <- glue::glue("/vsis3/{bucket}/{path}/{hash}.geojson") |> as.character()
-  url <- gsub("/vsis3/", glue::glue("https://{server}/"), dest)
-  resp <- httr::HEAD(url)
-  sf::st_write(gdf, dest)
-  url
-}
-USA <- gdf_to_s3(USA)
-
 
 ui <- page_sidebar(
   sidebar = sidebar(
@@ -82,7 +67,8 @@ server <- function(input, output, session) {
       add_raster_layer(
         id = "natgeo_layer",
         source = "natgeo_source"
-      ) # |>
+      ) |>
+      richness_layer() # |>
     #set_layout_property("natgeo_layer", "visibility", "none") # IGNORED at outset
   )
 
@@ -102,14 +88,14 @@ server <- function(input, output, session) {
     # start clear
     maplibre_proxy("map") |>
       clear_layer("pad_layer") |>
-      clear_layer("country_layer") |>
-      clear_layer("richness")
+      clear_layer("country_layer")
 
     switch(
       input$layer,
       "pad_us" = maplibre_proxy("map") |> add_pad(),
       "country" = maplibre_proxy("map") |> add_countries(),
-      "ca_richness" = maplibre_proxy("map") |> add_richness(CA),
+      "ca_richness" = maplibre_proxy("map") |>
+        mapgl::set_source("richness", CA),
       "usa_richness" = maplibre_proxy("map") |> add_richness(path),
       "none" = NULL
     )

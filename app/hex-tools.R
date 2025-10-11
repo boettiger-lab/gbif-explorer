@@ -50,7 +50,7 @@ get_h3_aoi <- function(
   h3_column = NULL,
   keep_cols = NULL,
   uppercase = TRUE,
-  cache_path = "s3://public-data/gbif-cache/aoi/"
+  cache_path = "s3://public-data/cache/gbif-app/aoi/"
 ) {
   ## IF aoi is lazy already, we can get_h3_aoi without serializing to fgb.
   ## But we want to materialize it just to get the object hash
