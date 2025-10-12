@@ -195,6 +195,8 @@ server <- function(input, output, session) {
 
     m <- m |> add_hillshade(visibility = "none")
 
+    m <- m |> richness_layer() # default richness layer
+
     m |> add_countries()
   })
 
@@ -259,7 +261,7 @@ server <- function(input, output, session) {
     chat_clear("chat")
 
     maplibre_proxy("map") |>
-      add_richness(gdf)
+      set_source("richness", gdf)
   })
 
   # Zoom into selected feature, move down a layer, show resulting child features
@@ -321,8 +323,9 @@ server <- function(input, output, session) {
       taxa_selections = taxa_filter()
     )
 
+    print(gdf)
     maplibre_proxy("map") |>
-      add_richness(gdf)
+      set_source("richness", gdf)
   })
 
   observeEvent(input$get_mean_richness, {
@@ -330,7 +333,9 @@ server <- function(input, output, session) {
     layer <- layer_config[[input$layer_selection]]$parent_layer
     child_poly <- child_polygons(poly, layer, layer_config)
     gdf <- get_zonal_richness(child_poly, zoom = as.integer(input$resolution))
-    maplibre_proxy("map") |> add_richness(gdf)
+
+    print("mapping zonal richness...")
+    maplibre_proxy("map") |> set_source("richness", gdf)
   })
 
   observeEvent(input$clear_filters, {
@@ -338,7 +343,7 @@ server <- function(input, output, session) {
   })
 
   observeEvent(input$clear_richness, {
-    maplibre_proxy("map") |> clear_layer("richness")
+    maplibre_proxy("map") |> set_source("richness", "https://example.com")
   })
 
   observeEvent(input$clear_area, {

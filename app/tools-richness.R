@@ -14,6 +14,7 @@ open_gbif_partition <- function(subset, server) {
   gbif <- open_dataset(urls, tblname = "gbif")
 }
 
+
 open_gbif_region <- function(poly_hexed, server) {
   subset <- poly_hexed |>
     dplyr::distinct(h0) |>
@@ -53,7 +54,8 @@ richness_table <- function(
   taxa_selections = list(),
   server = Sys.getenv("AWS_S3_ENDPOINT", "minio.carlboettiger.info")
 ) {
-  poly_hexed <- get_h3_aoi(poly, precision = zoom, keep_cols = id_column)
+  poly_hexed_url <- get_h3_aoi(poly, precision = zoom, keep_cols = id_column)
+  poly_hexed <- duckdbfs::open_dataset(poly_hexed_url, recursive = FALSE)
 
   open_gbif_region(poly_hexed, server) |>
     filter_gbif_taxa(taxa_selections) |>
@@ -73,16 +75,6 @@ richness_table <- function(
     count(kingdom, phylum, class, order, family, genus, species, taxonkey)
 }
 
-# should this also support richness or single species?
-inat_rangemap <- function(
-  poly,
-  zoom,
-  id_column = "id",
-  taxa_selections = list()
-) {
-  poly_hexed <- get_h3_aoi(poly, precision = zoom, keep_cols = id_column)
-}
-
 
 # compute zonal stats.
 # benchmark pure spatial approaches vs hex-joins
@@ -92,26 +84,48 @@ get_zonal_richness <- function(
   zoom,
   id_column = "id",
   taxa_selections = list(),
-  server = Sys.getenv("AWS_S3_ENDPOINT", "minio.carlboettiger.info")
+  server = Sys.getenv("AWS_S3_ENDPOINT", "minio.carlboettiger.info"),
+  local = FALSE
 ) {
-  poly_hexed <- get_h3_aoi(poly, precision = zoom, keep_cols = id_column)
-  gbif_stats <- get_zonal_richness_(poly_hexed, taxa_selections, server)
+  gbif_stats <- get_zonal_richness_(
+    poly,
+    zoom,
+    id_column,
+    taxa_selections,
+    server
+  )
 
   # join on id_column to poly
-  poly |>
+  poly <- poly |>
     dplyr::select(dplyr::all_of(id_column), geometry) |>
     dplyr::inner_join(gbif_stats, by = id_column) |>
-    duckdbfs::to_sf(crs = 4326)
+    rename(geom = "geometry")
+
+  materialize(
+    poly,
+    zoom = zoom,
+    id_column = id_column,
+    local = local,
+    max_features = getOption("shiny_max_features", 20000L),
+    bucket = "public-data/cache/gbif-app",
+    label = "richness",
+    server = "minio.carlboettiger.info"
+  )
 }
 
 get_zonal_richness_ <- function(
-  poly_hexed,
+  poly,
+  zoom,
+  id_column = "id",
   taxa_selections = list(),
   server
 ) {
-  hash <- digest::digest(list(poly_hexed, taxa_selections))
+  poly_hexed_url <- get_h3_aoi(poly, precision = zoom, keep_cols = id_column)
+  poly_hexed <- duckdbfs::open_dataset(poly_hexed_url, recursive = FALSE)
+
+  hash <- digest::digest(list(poly_hexed_url, taxa_selections))
   cache <- paste0(
-    "s3://public-data/gbif-cache/zonal_richness/",
+    "s3://public-data/cache/gbif-app/zonal_richness/",
     hash,
     fileext = ".parquet"
   )
@@ -137,11 +151,13 @@ get_zonal_richness_ <- function(
 
 
 # Hex-based calculation of species richness
-get_richness_ <- function(poly_hexed, taxa_selections, server) {
-  ## SOMEHOW THIS HASH is different on repeated runs
-  hash <- digest::digest(list(poly_hexed, taxa_selections))
+get_richness_ <- function(poly, zoom, id_column, taxa_selections, server) {
+  poly_hexed_url <- get_h3_aoi(poly, precision = zoom, keep_cols = id_column)
+  poly_hexed <- duckdbfs::open_dataset(poly_hexed_url, recursive = FALSE)
+
+  hash <- digest::digest(list(poly_hexed_url, taxa_selections))
   cache <- paste0(
-    "s3://public-data/gbif-cache/richness/",
+    "s3://public-data/cache/gbif-app/richness/",
     hash,
     fileext = ".parquet"
   )
@@ -160,7 +176,11 @@ get_richness_ <- function(poly_hexed, taxa_selections, server) {
       dplyr::rename(h3id = !!index) |>
       dplyr::count(h3id) |>
       dplyr::mutate(logn = log(n), value = logn / max(logn)) |>
-      dplyr::mutate(geom = h3_cell_to_boundary_wkt(h3id)) |>
+      dplyr::mutate(
+        geom = ST_GeomFromText(
+          h3_cell_to_boundary_wkt(h3id)
+        )
+      ) |>
       duckdbfs::write_dataset(cache)
   }
 
@@ -170,11 +190,13 @@ get_richness_ <- function(poly_hexed, taxa_selections, server) {
 get_richness <- function(
   poly,
   zoom,
+  id_column = "id",
   taxa_selections = list(),
   max_features = getOption("shiny_max_features", 20000L),
   warning = TRUE,
   verbose = TRUE,
-  server = Sys.getenv("AWS_S3_ENDPOINT", "minio.carlboettiger.info")
+  server = Sys.getenv("AWS_S3_ENDPOINT", "minio.carlboettiger.info"),
+  local = FALSE
 ) {
   if (verbose) {
     print(paste(
@@ -187,12 +209,11 @@ get_richness <- function(
     ))
   }
 
-  ## This step is memoised (after materializing the poly)
-  poly_hexed <- get_h3_aoi(poly, as.integer(zoom))
-
   # main compute task uses S3-cached data
   gbif <- get_richness_(
-    poly_hexed = poly_hexed,
+    poly = poly,
+    zoom = zoom,
+    id_column = id_column,
     taxa_selections = taxa_selections,
     server = server
   )
@@ -205,11 +226,42 @@ get_richness <- function(
       warning(paste("returning only first", max_features, "of", n_features))
     }
   }
+  materialize(
+    gbif,
+    zoom = zoom,
+    id_column = id_column,
+    local = local,
+    max_features = max_features,
+    bucket = "public-data/cache/gbif-app",
+    label = "richness",
+    server = "minio.carlboettiger.info"
+  )
+}
 
-  gbif <- gbif |>
-    head(max_features) |> # max number of features
-    dplyr::collect() |>
-    sf::st_as_sf(wkt = "geom", crs = 4326)
+materialize <- function(
+  gdf,
+  zoom,
+  id_column,
+  local = FALSE,
+  max_features = getOption("shiny_max_features", 20000L),
+  bucket = "public-data/cache/gbif-app",
+  label = "richness",
+  server = "minio.carlboettiger.info"
+) {
+  if (is.null(local)) {
+    return(gdf)
+  }
 
-  gbif
+  if (local) {
+    gdf <- gdf |>
+      head(max_features) |> # max number of features
+      duckdbfs::to_sf(crs = 4326)
+  } else {
+    hash <- digest::digest(list(gdf, zoom, id_column, label))
+    s3 <- glue::glue("s3://{bucket}/{label}/{hash}.geojson")
+
+    gdf |> duckdbfs::to_geojson(s3)
+    gdf <- gsub("s3://", glue::glue("https://{server}/"), s3)
+  }
+  gdf
 }

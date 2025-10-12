@@ -11,5 +11,11 @@
     "linters": [
       "air"
     ]
-  }
+  },
+  
+    "[r]": {
+        "editor.formatOnSave": true
+    }
+
+
 }
