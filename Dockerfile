@@ -22,6 +22,8 @@ RUN install2.r --error \
   shinychat \
   tidyverse
 
+RUN R -e "remotes::install_github('cboettig/duckdbfs')"
+
 COPY app/ .
 
 EXPOSE 8080
