@@ -30,7 +30,8 @@ spec:
               name: aws
               key: AWS_SECRET_ACCESS_KEY
         - name: AWS_S3_ENDPOINT
-          value: "rook-ceph-rgw-nautiluss3.rook"
+          value: "s3-west.nrp-nautilus.io"
+          #          value: "rook-ceph-rgw-nautiluss3.rook"
         - name: AWS_PUBLIC_ENDPOINT
           value: "s3-west.nrp-nautilus.io"
         - name: AWS_HTTPS
