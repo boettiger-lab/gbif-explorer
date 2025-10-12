@@ -109,7 +109,7 @@ get_zonal_richness <- function(
     max_features = getOption("shiny_max_features", 20000L),
     bucket = "public-data/cache/gbif-app",
     label = "richness",
-    server = "minio.carlboettiger.info"
+    server = server
   )
 }
 
@@ -195,7 +195,7 @@ get_richness <- function(
   max_features = getOption("shiny_max_features", 20000L),
   warning = TRUE,
   verbose = TRUE,
-  server = Sys.getenv("AWS_S3_ENDPOINT", "minio.carlboettiger.info"),
+  server = Sys.getenv("AWS_S3_ENDPOINT"),
   local = FALSE
 ) {
   if (verbose) {
@@ -234,7 +234,7 @@ get_richness <- function(
     max_features = max_features,
     bucket = "public-data/cache/gbif-app",
     label = "richness",
-    server = "minio.carlboettiger.info"
+    server = server
   )
 }
 
@@ -246,7 +246,7 @@ materialize <- function(
   max_features = getOption("shiny_max_features", 20000L),
   bucket = "public-data/cache/gbif-app",
   label = "richness",
-  server = "minio.carlboettiger.info"
+  server = Sys.getenv("AWS_S3_ENDPOINT")
 ) {
   if (is.null(local)) {
     return(gdf)
