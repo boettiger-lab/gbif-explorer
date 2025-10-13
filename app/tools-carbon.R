@@ -44,8 +44,7 @@ get_carbon <- function(
   max_features = getOption("shiny_max_features", 20000L),
   warning = TRUE,
   verbose = TRUE,
-  server = Sys.getenv("AWS_S3_ENDPOINT", "minio.carlboettiger.info"),
-  local = FALSE
+  server = Sys.getenv("AWS_S3_ENDPOINT", "minio.carlboettiger.info")
 ) {
   duckdbfs::load_h3()
 
@@ -71,21 +70,9 @@ get_carbon <- function(
     head(max_features) |> # max number of features
     dplyr::mutate(geom = h3_cell_to_boundary_wkt(h3id))
 
-  if (local) {
-    carbon <- carbon |>
-      dplyr::collect() |>
-      sf::st_as_sf(wkt = "geom", crs = 4326)
-  } else {
-    hash <- digest::digest(list(poly, zoom, id_column, "carbon"))
-    s3 <- glue::glue("s3://public-data/cache/gbif-app/carbon/{hash}.geojson")
-    carbon |>
-      mutate(geom = ST_GeomFromText(geom)) |>
-      duckdbfs::to_geojson(s3)
-    carbon <- gsub("s3://", glue::glue("https://{server}/"), s3)
-
-  }
-
-  carbon
+  hash <- digest::digest(list(gdf, zoom, id_column, label))
+  s3 <- glue::glue("s3://{bucket}/{label}/{hash}.geojson")
+  duckdbfs::to_geojson(gdf, s3, as_http = TRUE)
 }
 
 

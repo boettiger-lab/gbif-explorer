@@ -35,7 +35,7 @@ lazy_gdf <- activate_from_config(
 )
 
 hexed <- get_h3_aoi(lazy_gdf, 7)
-gdf <- get_richness_(hexed, list())
+gdf <- get_richness_(ex_hexed, list())
 gdf |> count()
 
 

@@ -23,39 +23,14 @@ hawaii <- activate_from_config(
 poly <- hawaii
 bounds <- poly |> select(geom = geometry) |> to_sf(crs = 4326)
 
-# why is cache never found?
-gdf <- get_richness(poly, 7L)
-gdf2 <- get_zonal_richness(poly, 7L)
-
-n_stops = 9
-
-maplibre(bounds = bounds) |>
-  mapgl::add_fill_extrusion_layer(
-    id = "richness",
-    tooltip = concat("Richness:", mapgl::get_column("n")),
-    fill_extrusion_color = mapgl::interpolate(
-      column = "value",
-      values = seq(0, 1, length.out = n_stops),
-      stops = viridisLite::viridis(n_stops, option = "viridis")
-    ),
-    fill_extrusion_height = list("*", 10000, list("get", "value")),
-    fill_extrusion_opacity = 0.7
-  ) |>
-  mapgl::set_source("richness", gdf)
-
-  maplibre() |>
-  add_richness(ex_gdf)
+gdf <- get_richness(poly, 7)
+maplibre(bounds = bounds, zoom = 7) |> richness_layer(gdf)
 
 
-## Let's do zonal
-gdf2 <- get_zonal_richness(poly, 7L)
-maplibre() |> add_richness(gdf2)
-
-## Let's get child polys first:
-
+## Let's do zonal child polygons
 child_poly <- child_polygons(poly, layer, layer_config)
 gdf3 <- get_zonal_richness(child_poly, zoom = 8L)
-maplibre(bounds = gdf3) |> add_richness(gdf3)
+maplibre(bounds = bounds, zoom = 7) |> richness_layer(gdf3)
 
 
 grandchild_poly <-
@@ -63,6 +38,6 @@ grandchild_poly <-
   rename(geometry = Shape)
 
 gdf4 <- get_zonal_richness(grandchild_poly, zoom = 8L, id_column = "FIPS")
-maplibre(bounds = gdf4) |> add_richness(gdf4)
+maplibre(bounds = gdf4) |>  richness_layer(gdf4)
 
 # technically we might want to drop a level to child polys on ex_gdf here first

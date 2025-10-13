@@ -85,7 +85,7 @@ get_zonal_richness <- function(
   id_column = "id",
   taxa_selections = list(),
   server = Sys.getenv("AWS_S3_ENDPOINT", "minio.carlboettiger.info"),
-  local = FALSE
+  bucket = "public-data/cache/gbif-app"
 ) {
   gbif_stats <- get_zonal_richness_(
     poly,
@@ -101,18 +101,13 @@ get_zonal_richness <- function(
     dplyr::inner_join(gbif_stats, by = id_column) |>
     rename(geom = "geometry")
 
-  materialize(
-    poly,
-    zoom = zoom,
-    id_column = id_column,
-    local = local,
-    max_features = getOption("shiny_max_features", 20000L),
-    bucket = "public-data/cache/gbif-app",
-    label = "richness",
-    server = server
-  )
+  label <- "richness"
+  hash <- digest::digest(list(poly, zoom, id_column, label))
+  s3 <- glue::glue("s3://{bucket}/{label}/{hash}.geojson")
+  duckdbfs::to_geojson(poly, s3, as_http = TRUE)
 }
 
+## TOTAL Richness of polygon, not richness density.
 get_zonal_richness_ <- function(
   poly,
   zoom,
@@ -192,11 +187,10 @@ get_richness <- function(
   zoom,
   id_column = "id",
   taxa_selections = list(),
-  max_features = getOption("shiny_max_features", 20000L),
   warning = TRUE,
   verbose = TRUE,
   server = Sys.getenv("AWS_S3_ENDPOINT"),
-  local = FALSE
+  bucket = "public-data/cache/gbif-app"
 ) {
   if (verbose) {
     print(paste(
@@ -218,50 +212,8 @@ get_richness <- function(
     server = server
   )
 
-  # in-memory gdf will crash above a certain number of hexes
-  if (warning) {
-    n_features <- gbif |> count() |> pull(n)
-    print(paste("computed", n_features, "hexes"))
-    if (n_features > max_features) {
-      warning(paste("returning only first", max_features, "of", n_features))
-    }
-  }
-  materialize(
-    gbif,
-    zoom = zoom,
-    id_column = id_column,
-    local = local,
-    max_features = max_features,
-    bucket = "public-data/cache/gbif-app",
-    label = "richness",
-    server = server
-  )
-}
-
-materialize <- function(
-  gdf,
-  zoom,
-  id_column,
-  local = FALSE,
-  max_features = getOption("shiny_max_features", 20000L),
-  bucket = "public-data/cache/gbif-app",
-  label = "richness",
-  server = Sys.getenv("AWS_S3_ENDPOINT")
-) {
-  if (is.null(local)) {
-    return(gdf)
-  }
-
-  if (local) {
-    gdf <- gdf |>
-      head(max_features) |> # max number of features
-      duckdbfs::to_sf(crs = 4326)
-  } else {
-    hash <- digest::digest(list(gdf, zoom, id_column, label))
-    s3 <- glue::glue("s3://{bucket}/{label}/{hash}.geojson")
-
-    gdf |> duckdbfs::to_geojson(s3)
-    gdf <- gsub("s3://", glue::glue("https://{server}/"), s3)
-  }
-  gdf
+  label <- "richness"
+  hash <- digest::digest(list(gbif, zoom, id_column, label))
+  s3 <- glue::glue("s3://{bucket}/{label}/{hash}.geojson")
+  duckdbfs::to_geojson(gbif, s3, as_http = TRUE)
 }
