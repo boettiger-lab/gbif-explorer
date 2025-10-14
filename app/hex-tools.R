@@ -137,7 +137,7 @@ get_h3_aoi_ <- function(
 
   h3_aoi <- h3_aoi |>
     dplyr::select(dplyr::any_of(c("h0", "h3id", keep_cols))) |>
-    dplyr::rename(!!h3_column := h3id)
+    dplyr::mutate(!!h3_column := h3id)
 
   # h3_aoi |> as_view("h3_aoi")
 

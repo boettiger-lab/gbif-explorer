@@ -42,6 +42,7 @@ get_inat_hexes <- function(
   }
 
   inat <- inat |>
+    dplyr::inner_join(poly_hexed) |>
     dplyr::count(h3id) |>
     dplyr::mutate(logn = log(n), value = logn / max(logn)) |>
     dplyr::mutate(
@@ -68,12 +69,21 @@ get_inat_zonal <- function(
   duckdbfs::load_h3()
 
   # get_h3_aoi is self-caching, shared across metrics
-  poly_hexed_url <- get_h3_aoi(poly, precision = zoom, keep_cols = id_column)
-  poly_hexed <- duckdbfs::open_dataset(poly_hexed_url, recursive = FALSE)
+  poly_hexed_url <- get_h3_aoi(
+    poly,
+    precision = zoom,
+    keep_cols = id_column,
+    h3_column = "h3id"
+  )
+  poly_hexed <-
+    duckdbfs::open_dataset(poly_hexed_url, recursive = FALSE) |>
+    dplyr::mutate(h3id = tolower(h3id))
 
   inat <-
     open_dataset("s3://public-inat/hex") |>
     filter_inat_taxa(taxa_selections)
+
+  print("POSITION 1")
 
   # handle alternate resolutions on the fly?  Or precompute these?
   if (zoom < 4) {
@@ -87,20 +97,27 @@ get_inat_zonal <- function(
     inat <- inat |> rename(h3id = h4)
   }
 
+  print("POSITION 2")
+
+  print(inat)
+  print(poly_hexed)
+
   inat <- inat |>
-    dplyr::count(h3id) |>
-    dplyr::mutate(logn = log(n), value = logn / max(logn)) |>
-    dplyr::mutate(
-      geom = ST_GeomFromText(
-        h3_cell_to_boundary_wkt(h3id)
-      )
-    )
+    dplyr::inner_join(poly_hexed) |>
+    dplyr::count(.data[[id_column]]) |>
+    dplyr::mutate(logn = log(n), value = logn / max(logn))
+
+  # join back to poly with geoms
+  poly <- poly |>
+    dplyr::select(dplyr::all_of(id_column), geometry) |>
+    dplyr::inner_join(inat, by = id_column) |>
+    rename(geom = "geometry")
 
   ## this part should be separate? Or be included in cache logic.
   label <- "inat"
-  hash <- digest::digest(list(inat, zoom, id_column, label))
+  hash <- digest::digest(list(poly, zoom, id_column, label))
   s3 <- glue::glue("s3://{bucket}/{label}/{hash}.geojson")
-  duckdbfs::to_geojson(inat, s3, as_http = TRUE)
+  duckdbfs::to_geojson(poly, s3, as_http = TRUE)
 }
 
 # FIXME do the filter!
