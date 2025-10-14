@@ -56,3 +56,4 @@ rsconnect/
 Rplots.pdf
 .tmp/
 kubernetes/set-secrets.sh
+node_modules/*

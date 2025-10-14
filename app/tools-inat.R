@@ -3,57 +3,19 @@ inat_rangemap <- function(
   poly,
   zoom,
   id_column = "id",
-  taxa_selections = list()
+  taxa_selections = list(),
+  server = Sys.getenv("AWS_S3_ENDPOINT", "minio.carlboettiger.info"),
+  bucket = "public-data/cache/gbif-app"
 ) {
   poly_hexed <- get_h3_aoi(poly, precision = zoom, keep_cols = id_column)
 }
 
 
-open_carbon_partition <- function(
-  subset,
-  server = Sys.getenv("AWS_S3_ENDPOINT", "minio.carlboettiger.info")
-) {
-  # Fallback case, opens all partitions
-  if (length(subset) < 1) {
-    return(open_dataset(
-      glue("s3://public-carbon/hex/vulnerable-carbon"),
-      tblname = "carbon"
-    ))
-  }
-  # open directly as one or more URLs
-  urls <- paste0(
-    glue("https://{server}/public-carbon/hex/vulnerable-carbon/h0="),
-    tolower(subset),
-    "/data_0.parquet"
-  )
-  carbon <- duckdbfs::open_dataset(urls, tblname = "carbon")
-}
-
-
-open_carbon_region <- function(
-  poly_hexed,
-  server = Sys.getenv("AWS_S3_ENDPOINT", "minio.carlboettiger.info")
-) {
-  subset <- poly_hexed |>
-    dplyr::distinct(h0) |>
-    dplyr::pull()
-
-  hexcols <- poly_hexed |> colnames()
-  index <- hexcols[2]
-
-  open_carbon_partition(subset, server) |>
-    dplyr::select(-h0) |>
-    dplyr::mutate(!!index := toupper(!!sym(index))) |>
-    dplyr::inner_join(poly_hexed) |>
-    dplyr::rename(h3id = !!index)
-}
-
-get_carbon <- function(
+get_inat_hexes <- function(
   poly,
-  zoom = 8L,
+  zoom = 4L,
   id_column = "id",
-  warning = TRUE,
-  verbose = TRUE,
+  taxa_selections = list(),
   server = Sys.getenv("AWS_S3_ENDPOINT", "minio.carlboettiger.info"),
   bucket = "public-data/cache/gbif-app"
 ) {
@@ -63,49 +25,85 @@ get_carbon <- function(
   poly_hexed_url <- get_h3_aoi(poly, precision = zoom, keep_cols = id_column)
   poly_hexed <- duckdbfs::open_dataset(poly_hexed_url, recursive = FALSE)
 
-  ## This operation is maybe always fast enough not to cache?
-  carbon <- open_carbon_region(poly_hexed, server) |>
-    dplyr::group_by(h3id) |>
-    dplyr::summarise(carbon = mean(carbon)) |>
-    dplyr::mutate(value = carbon / max(carbon)) # normalize for color scale
+  inat <-
+    open_dataset("s3://public-inat/hex") |>
+    filter_gbif_taxa(taxa_selections)
 
-  carbon <- carbon |>
-    dplyr::mutate(geom = ST_GeomFromText(h3_cell_to_boundary_wkt(h3id)))
+  # handle alternate resolutions on the fly?  Or precompute these?
+  if (zoom < 4) {
+    inat <- inat |> mutate(h3id = unnest(h3_cell_to_children(h4, zoom)))
+  } else if (zoom > 4) {
+    inat <- inat |>
+      mutate(h3id = h3_cell_to_parent(h4, zoom)) |>
+      select(-h4) |>
+      distinct() # is it worthwhile dropping duplicate rows?
+  } else {
+    inat <- inat |> rename(h3id = h4)
+  }
+
+  inat <- inat |>
+    dplyr::count(h3id) |>
+    dplyr::mutate(logn = log(n), value = logn / max(logn)) |>
+    dplyr::mutate(
+      geom = ST_GeomFromText(
+        h3_cell_to_boundary_wkt(h3id)
+      )
+    )
 
   ## this part should be separate? Or be included in cache logic.
-  label <- "carbon"
-  hash <- digest::digest(list(carbon, zoom, id_column, label))
+  label <- "inat"
+  hash <- digest::digest(list(inat, zoom, id_column, label))
   s3 <- glue::glue("s3://{bucket}/{label}/{hash}.geojson")
-  duckdbfs::to_geojson(carbon, s3, as_http = TRUE)
+  duckdbfs::to_geojson(inat, s3, as_http = TRUE)
 }
 
-
-get_mean_carbon <- function(
+get_inat_zonal <- function(
   poly,
-  zoom = 8L,
+  zoom = 4L,
   id_column = "id",
-  warning = TRUE,
-  verbose = TRUE,
+  taxa_selections = list(),
   server = Sys.getenv("AWS_S3_ENDPOINT", "minio.carlboettiger.info"),
   bucket = "public-data/cache/gbif-app"
 ) {
+  duckdbfs::load_h3()
+
   # get_h3_aoi is self-caching, shared across metrics
   poly_hexed_url <- get_h3_aoi(poly, precision = zoom, keep_cols = id_column)
   poly_hexed <- duckdbfs::open_dataset(poly_hexed_url, recursive = FALSE)
 
-  ## This operation is maybe always fast enough not to cache?
-  carbon <- open_carbon_region(poly_hexed, server) |>
-    dplyr::group_by(.data[[id_column]]) |>
-    dplyr::summarise(carbon = mean(carbon)) |>
-    dplyr::mutate(value = carbon / max(carbon)) # normalize for color scale
+  inat <-
+    open_dataset("s3://public-inat/hex") |>
+    filter_inat_taxa(taxa_selections)
 
-  gdf <- poly |>
-    dplyr::select(dplyr::all_of(id_column), geometry) |>
-    dplyr::inner_join(carbon, by = id_column) |>
-    rename(geom = "geometry")
+  # handle alternate resolutions on the fly?  Or precompute these?
+  if (zoom < 4) {
+    inat <- inat |> mutate(h3id = unnest(h3_cell_to_children(h4, zoom)))
+  } else if (zoom > 4) {
+    inat <- inat |>
+      mutate(h3id = h3_cell_to_parent(h4, zoom)) |>
+      select(-h4) |>
+      distinct() # is it worth dropping duplicates?
+  } else {
+    inat <- inat |> rename(h3id = h4)
+  }
 
-  label <- "carbon"
-  hash <- digest::digest(list(gdf, zoom, id_column, label))
+  inat <- inat |>
+    dplyr::count(h3id) |>
+    dplyr::mutate(logn = log(n), value = logn / max(logn)) |>
+    dplyr::mutate(
+      geom = ST_GeomFromText(
+        h3_cell_to_boundary_wkt(h3id)
+      )
+    )
+
+  ## this part should be separate? Or be included in cache logic.
+  label <- "inat"
+  hash <- digest::digest(list(inat, zoom, id_column, label))
   s3 <- glue::glue("s3://{bucket}/{label}/{hash}.geojson")
-  duckdbfs::to_geojson(gdf, s3, as_http = TRUE)
+  duckdbfs::to_geojson(inat, s3, as_http = TRUE)
+}
+
+# FIXME do the filter!
+filter_inat_taxa <- function(df, taxa_list) {
+  df
 }

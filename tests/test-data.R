@@ -12,6 +12,11 @@ source("app/tools-richness.R")
 duckdb_secrets()
 load_spatial()
 
+
+
+inat <- open_dataset("s3://public-inat/hex")
+
+
 ex <- activate_from_config(
   "0da365a8-6973-41be-a156-2345a7d0f706", # honolulu
   layer_config$county_layer
