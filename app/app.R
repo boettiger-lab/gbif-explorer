@@ -81,8 +81,8 @@ Smaller areas will be faster to compute!  Zoom in further to show richness with 
     card(
       card_header("Biodiversity"),
       # chat_ui("chat", placeholder = "hummingbirds"),
-      actionLink("get_richness", "🐦 richness hexes"),
-      actionLink("get_mean_richness", "🐦 zonal richness")
+      actionLink("get_richness", "🐦 GBIF species richness"),
+      actionLink("get_carbon", "🌱 vulnerable carbon"),
     ),
     card(
       card_header("Resolution"),
@@ -93,7 +93,8 @@ Smaller areas will be faster to compute!  Zoom in further to show richness with 
         max = MAXZOOM,
         value = 2,
         step = 1
-      )
+      ),
+      input_switch("show_hexes", "show hexes", value = FALSE)
     ),
     br(),
     input_switch("toggle_natgeo", "natgeo", value = TRUE),
@@ -128,7 +129,7 @@ server <- function(input, output, session) {
 
   taxa_selections <- taxonomicSelectorServer("taxa_selector")
 
-  # React to changes in taxonomic selections
+  # Update taxa selector tool to drill down on taxonomic selections
   observe({
     selections <- taxa_selections$selections()
     print(paste(
@@ -137,34 +138,9 @@ server <- function(input, output, session) {
     ))
     taxa_filter(selections)
   })
+
   # Waterfall strategy to determine feature selection:
-  get_active_feature <- function(input) {
-    gdf <- active_feature()
-
-    if (is_empty(gdf)) {
-      print("No feature selected, checking for drawing")
-      gdf <- get_drawn_features(maplibre_proxy("map"))
-    }
-    if (is_empty(gdf)) {
-      print("No drawing found, checking geocoder")
-      gdf <- geocoder_to_gdf(input$map_geocoder)
-    }
-    if (is_empty(gdf)) {
-      print("No geocoder, getting current bbox")
-      bbox <- input$map_bbox
-      print(bbox)
-      if (!is.null(bbox)) {
-        gdf <- get_polygon_bbox(bbox)
-      }
-    }
-
-    if (is_empty(gdf)) {
-      warning("No selection found, using default!")
-      return(spData::us_states)
-    }
-
-    gdf
-  }
+  # FIXME select all (visible) protected areas? select protected areas by filtering them?
 
   # Set up the map:
   output$map <- renderMaplibre({
@@ -195,6 +171,7 @@ server <- function(input, output, session) {
     m <- m |> add_hillshade(visibility = "none")
 
     m <- m |> richness_layer() # default richness layer
+    m <- m |> carbon_layer() # default carbon layer
 
     m |> add_countries()
   })
@@ -237,30 +214,6 @@ server <- function(input, output, session) {
 
     ## FIXME layer_filter should know what layer it applies to!
     proxy |> mapgl::set_filter(input$layer_selection, layer_filter())
-  })
-
-  # Observe chat input
-  observeEvent(input$chat_user_input, {
-    taxa_selected <- txt_to_taxa(input$chat_user_input)
-
-    resp <- bot_response(taxa_selected, input$resolution)
-    print(resp)
-    chat_append("chat", resp)
-
-    # optionally - store the selection as global variable for future reactions
-    taxa_filter(taxa_selected)
-
-    # we can react right away, computing richness and updating map
-    gdf <- get_richness(
-      poly = get_active_feature(input),
-      zoom = as.integer(input$resolution),
-      taxa_selections = taxa_selected
-    )
-
-    chat_clear("chat")
-
-    maplibre_proxy("map") |>
-      set_source("richness", gdf)
   })
 
   # Zoom into selected feature, move down a layer, show resulting child features
@@ -316,33 +269,51 @@ server <- function(input, output, session) {
   })
 
   observeEvent(input$get_richness, {
-    gdf <- get_richness(
-      poly = get_active_feature(input),
-      zoom = as.integer(input$resolution),
-      taxa_selections = taxa_filter()
-    )
+    poly <- get_active_feature(active_feature(), input)
+
+    if (input$show_hexes) {
+      gdf <- get_richness(
+        poly = poly,
+        zoom = as.integer(input$resolution),
+        taxa_selections = taxa_filter()
+      )
+    } else {
+      layer <- layer_config[[input$layer_selection]]$parent_layer
+      child_poly <- child_polygons(poly, layer, layer_config)
+      gdf <- get_zonal_richness(
+        child_poly,
+        zoom = as.integer(input$resolution),
+        taxa_selections = taxa_filter()
+      )
+    }
 
     print(gdf)
     maplibre_proxy("map") |>
       set_source("richness", gdf)
   })
 
-  observeEvent(input$get_mean_richness, {
-    poly <- get_active_feature(input)
-    layer <- layer_config[[input$layer_selection]]$parent_layer
-    child_poly <- child_polygons(poly, layer, layer_config)
-    gdf <- get_zonal_richness(child_poly, zoom = as.integer(input$resolution))
+  observeEvent(input$get_carbon, {
+    poly <- get_active_feature(active_feature(), input)
 
-    print("mapping zonal richness...")
-    maplibre_proxy("map") |> set_source("richness", gdf)
+    if (input$show_hexes) {
+      gdf <- get_carbon(
+        poly = poly,
+        zoom = as.integer(input$resolution)
+      )
+    } else {
+      layer <- layer_config[[input$layer_selection]]$parent_layer
+      child_poly <- child_polygons(poly, layer, layer_config)
+      gdf <- get_mean_carbon(child_poly, zoom = as.integer(input$resolution))
+    }
+
+    print(gdf)
+    maplibre_proxy("map") |>
+      set_source("carbon", gdf)
   })
 
+  # Layer selection tools
   observeEvent(input$clear_filters, {
     maplibre_proxy("map") |> set_filter(input$layer_selection, NULL)
-  })
-
-  observeEvent(input$clear_richness, {
-    maplibre_proxy("map") |> set_source("richness", "https://example.com")
   })
 
   observeEvent(input$clear_area, {
@@ -404,6 +375,30 @@ server <- function(input, output, session) {
         set_layout_property("natgeo_layer", "visibility", "none") |>
         set_style(input$basemap)
     }
+  })
+
+  # Observe chat input
+  observeEvent(input$chat_user_input, {
+    taxa_selected <- txt_to_taxa(input$chat_user_input)
+
+    resp <- bot_response(taxa_selected, input$resolution)
+    print(resp)
+    chat_append("chat", resp)
+
+    # optionally - store the selection as global variable for future reactions
+    taxa_filter(taxa_selected)
+
+    # we can react right away, computing richness and updating map
+    gdf <- get_richness(
+      poly = get_active_feature(active_feature(), input),
+      zoom = as.integer(input$resolution),
+      taxa_selections = taxa_selected
+    )
+
+    chat_clear("chat")
+
+    maplibre_proxy("map") |>
+      set_source("richness", gdf)
   })
 }
 

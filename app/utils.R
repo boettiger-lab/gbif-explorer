@@ -92,32 +92,28 @@ child_polygons <- function(poly, layer, layer_config) {
   child_poly
 }
 
-
-## no longer needed
-materialize <- function(
-  gdf,
-  zoom,
-  id_column = "id",
-  local = FALSE,
-  max_features = getOption("shiny_max_features", 20000L),
-  bucket = "public-data/cache/gbif-app",
-  label = "richness",
-  server = Sys.getenv("AWS_S3_ENDPOINT")
-) {
-  if (is.null(local)) {
-    return(gdf)
+get_active_feature <- function(gdf, input) {
+  if (is_empty(gdf)) {
+    print("No feature selected, checking for drawing")
+    gdf <- mapgl::get_drawn_features(mapgl::maplibre_proxy("map"))
+  }
+  if (is_empty(gdf)) {
+    print("No drawing found, checking geocoder")
+    gdf <- geocoder_to_gdf(input$map_geocoder)
+  }
+  if (is_empty(gdf)) {
+    print("No geocoder, getting current bbox")
+    bbox <- input$map_bbox
+    print(bbox)
+    if (!is.null(bbox)) {
+      gdf <- get_polygon_bbox(bbox)
+    }
   }
 
-  if (local) {
-    gdf <- gdf |>
-      head(max_features) |> # max number of features
-      duckdbfs::to_sf(crs = 4326)
-  } else {
-    hash <- digest::digest(list(gdf, zoom, id_column, label))
-    s3 <- glue::glue("s3://{bucket}/{label}/{hash}.geojson")
-
-    gdf |> duckdbfs::to_geojson(s3)
-    gdf <- gsub("s3://", glue::glue("https://{server}/"), s3)
+  if (is_empty(gdf)) {
+    warning("No selection found, using default!")
+    return(spData::us_states)
   }
+
   gdf
 }

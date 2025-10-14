@@ -193,6 +193,27 @@ richness_layer <- function(
     )
 }
 
+carbon_layer <- function(
+  map,
+  gdf = "https://minio.carlboettiger.info",
+  n_stops = 7
+) {
+  map |>
+    mapgl::add_source("carbon_source", gdf) |>
+    mapgl::add_fill_extrusion_layer(
+      id = "carbon",
+      source = "carbon_source",
+      tooltip = concat("carbon:", mapgl::get_column("carbon")),
+      fill_extrusion_color = mapgl::interpolate(
+        column = "value",
+        values = seq(0, 1, length.out = n_stops),
+        stops = viridisLite::viridis(n_stops, option = "viridis")
+      ),
+      fill_extrusion_height = list("*", 10000, list("get", "value")),
+      fill_extrusion_opacity = 0.7
+    )
+}
+
 
 add_richness_2d <- function(map, gdf) {
   map |>

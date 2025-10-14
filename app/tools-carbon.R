@@ -41,10 +41,10 @@ get_carbon <- function(
   poly,
   zoom = 8L,
   id_column = "id",
-  max_features = getOption("shiny_max_features", 20000L),
   warning = TRUE,
   verbose = TRUE,
-  server = Sys.getenv("AWS_S3_ENDPOINT", "minio.carlboettiger.info")
+  server = Sys.getenv("AWS_S3_ENDPOINT", "minio.carlboettiger.info"),
+  bucket = "public-data/cache/gbif-app"
 ) {
   duckdbfs::load_h3()
 
@@ -55,25 +55,46 @@ get_carbon <- function(
   ## This operation is maybe always fast enough not to cache?
   carbon <- open_carbon_region(poly_hexed, server) |>
     dplyr::group_by(h3id) |>
-    dplyr::summarise(carbon = mean(carbon))
-
-  # in-memory gdf will crash above a certain number of hexes
-  if (warning) {
-    n_features <- carbon |> count() |> pull(n)
-    print(paste("computed", n_features, "hexes"))
-    if (n_features > max_features) {
-      warning(paste("returning only first", max_features, "of", n_features))
-    }
-  }
+    dplyr::summarise(carbon = mean(carbon)) |>
+    dplyr::mutate(value = carbon / max(carbon)) # normalize for color scale
 
   carbon <- carbon |>
-    head(max_features) |> # max number of features
-    dplyr::mutate(geom = h3_cell_to_boundary_wkt(h3id))
+    dplyr::mutate(geom = ST_GeomFromText(h3_cell_to_boundary_wkt(h3id)))
 
+  ## this part should be separate? Or be included in cache logic.
+  label <- "carbon"
+  hash <- digest::digest(list(carbon, zoom, id_column, label))
+  s3 <- glue::glue("s3://{bucket}/{label}/{hash}.geojson")
+  duckdbfs::to_geojson(carbon, s3, as_http = TRUE)
+}
+
+
+get_mean_carbon <- function(
+  poly,
+  zoom = 8L,
+  id_column = "id",
+  warning = TRUE,
+  verbose = TRUE,
+  server = Sys.getenv("AWS_S3_ENDPOINT", "minio.carlboettiger.info"),
+  bucket = "public-data/cache/gbif-app"
+) {
+  # get_h3_aoi is self-caching, shared across metrics
+  poly_hexed_url <- get_h3_aoi(poly, precision = zoom, keep_cols = id_column)
+  poly_hexed <- duckdbfs::open_dataset(poly_hexed_url, recursive = FALSE)
+
+  ## This operation is maybe always fast enough not to cache?
+  carbon <- open_carbon_region(poly_hexed, server) |>
+    dplyr::group_by(.data[[id_column]]) |>
+    dplyr::summarise(carbon = mean(carbon)) |>
+    dplyr::mutate(value = carbon / max(carbon)) # normalize for color scale
+
+  gdf <- poly |>
+    dplyr::select(dplyr::all_of(id_column), geometry) |>
+    dplyr::inner_join(carbon, by = id_column) |>
+    rename(geom = "geometry")
+
+  label <- "carbon"
   hash <- digest::digest(list(gdf, zoom, id_column, label))
   s3 <- glue::glue("s3://{bucket}/{label}/{hash}.geojson")
   duckdbfs::to_geojson(gdf, s3, as_http = TRUE)
 }
-
-
-get_mean_carbon <- function() {}
