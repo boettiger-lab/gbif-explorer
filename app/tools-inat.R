@@ -1,13 +1,88 @@
-# should this also support richness or single species?
-inat_rangemap <- function(
+open_inat_partition <- function(subset, server) {
+  if (length(subset) < 1) {
+    return(duckdbfs::open_dataset(
+      glue::glue("s3://public-inat/range-maps/hex/"),
+      tblname = "inat"
+    ))
+  }
+
+  # could use s3 patterns here still instead of https
+  urls <- paste0(
+    glue::glue("s3://public-inat/range-maps/hex/h0="),
+    subset,
+    "/*.parquet"
+  )
+  open_dataset(urls, tblname = "inat", recursive = FALSE)
+}
+
+
+# open only the partitioned tiles, and then filter down to the polygon
+open_inat_region <- function(poly_hexed, server) {
+  poly_hexed |>
+    dplyr::distinct(h0) |>
+    dplyr::pull() |>
+    tolower() |>
+    open_inat_partition(server)
+}
+
+
+hex_join <- function(dat, aoi) {
+  aoi_res <- hex_cols(aoi)
+  data_res <- hex_cols(dat)
+  aoi <- aoi |> select(-any_of(c("h0", "h3id")))
+
+  hz <- sort(aoi_res, TRUE)[1] # Target zoom of the AOI
+
+  zoom <- as.integer(gsub("^h", "", hz))
+
+  if (any(grepl(hz, data_res))) {
+    message(paste("joining area of interest at matched resolution", hz))
+    out <- inner_join(aoi, dat, hz) |>
+      rename(h3id := !!hz)
+  } else {
+    # Coarsen the AOI to the data resolution and then filtering join
+    smallest <- sort(data_res, TRUE)[1]
+    new_zoom <- as.integer(gsub("^h", "", smallest))
+
+    message(paste(
+      "joining area of interest smallest resolution of data,",
+      smallest
+    ))
+    out <-
+      aoi |>
+      mutate(!!smallest := h3_cell_to_parent(.data[[hz]], new_zoom)) |>
+      inner_join(dat, by = smallest) |>
+      rename(h3id := !!hz)
+  }
+
+  out
+}
+
+
+# Adjust this.  Cache the hex join pre species-filter?
+open_inat_area <- function(
   poly,
-  zoom,
+  zoom = 4L,
   id_column = "id",
   taxa_selections = list(),
-  server = Sys.getenv("AWS_S3_ENDPOINT", "minio.carlboettiger.info"),
-  bucket = "public-data/cache/gbif-app"
+  server = Sys.getenv("AWS_S3_ENDPOINT", "minio.carlboettiger.info")
 ) {
-  poly_hexed <- get_h3_aoi(poly, precision = zoom, keep_cols = id_column)
+  duckdbfs::load_h3()
+
+  # get_h3_aoi is self-caching, shared across metrics
+  poly_hexed_url <- get_h3_aoi(
+    poly,
+    precision = zoom,
+    keep_cols = id_column,
+    uppercase = FALSE
+  )
+  poly_hexed <- duckdbfs::open_dataset(poly_hexed_url, recursive = FALSE)
+
+  inat <- open_inat_region(poly_hexed, server) |>
+    hex_join(poly_hexed) |>
+    filter_inat_taxa(taxa_selections)
+
+  inat
 }
 
 
@@ -19,30 +94,16 @@ get_inat_hexes <- function(
   server = Sys.getenv("AWS_S3_ENDPOINT", "minio.carlboettiger.info"),
   bucket = "public-data/cache/gbif-app"
 ) {
-  duckdbfs::load_h3()
+  message(paste("opening inat at zoom", zoom))
+  inat <- open_inat_area(
+    poly = poly,
+    zoom = zoom,
+    id_column = id_column,
+    taxa_selections = taxa_selections
+  )
 
-  # get_h3_aoi is self-caching, shared across metrics
-  poly_hexed_url <- get_h3_aoi(poly, precision = zoom, keep_cols = id_column)
-  poly_hexed <- duckdbfs::open_dataset(poly_hexed_url, recursive = FALSE)
-
-  inat <-
-    open_dataset("s3://public-inat/hex") |>
-    filter_gbif_taxa(taxa_selections)
-
-  # handle alternate resolutions on the fly?  Or precompute these?
-  if (zoom < 4) {
-    inat <- inat |> mutate(h3id = unnest(h3_cell_to_children(h4, zoom)))
-  } else if (zoom > 4) {
-    inat <- inat |>
-      mutate(h3id = h3_cell_to_parent(h4, zoom)) |>
-      select(-h4) |>
-      distinct() # is it worthwhile dropping duplicate rows?
-  } else {
-    inat <- inat |> rename(h3id = h4)
-  }
-
+  message("counting species richness by hex")
   inat <- inat |>
-    dplyr::inner_join(poly_hexed) |>
     dplyr::count(h3id) |>
     dplyr::mutate(logn = log(n), value = logn / max(logn)) |>
     dplyr::mutate(
@@ -66,44 +127,16 @@ get_inat_zonal <- function(
   server = Sys.getenv("AWS_S3_ENDPOINT", "minio.carlboettiger.info"),
   bucket = "public-data/cache/gbif-app"
 ) {
-  duckdbfs::load_h3()
-
-  # get_h3_aoi is self-caching, shared across metrics
-  poly_hexed_url <- get_h3_aoi(
-    poly,
-    precision = zoom,
-    keep_cols = id_column,
-    h3_column = "h3id"
+  message(paste("opening inat at zoom", zoom))
+  inat <- open_inat_area(
+    poly = poly,
+    zoom = zoom,
+    id_column = id_column,
+    taxa_selections = taxa_selections
   )
-  poly_hexed <-
-    duckdbfs::open_dataset(poly_hexed_url, recursive = FALSE) |>
-    dplyr::mutate(h3id = tolower(h3id))
 
-  inat <-
-    open_dataset("s3://public-inat/hex") |>
-    filter_inat_taxa(taxa_selections)
-
-  print("POSITION 1")
-
-  # handle alternate resolutions on the fly?  Or precompute these?
-  if (zoom < 4) {
-    inat <- inat |> mutate(h3id = unnest(h3_cell_to_children(h4, zoom)))
-  } else if (zoom > 4) {
-    inat <- inat |>
-      mutate(h3id = h3_cell_to_parent(h4, zoom)) |>
-      select(-h4) |>
-      distinct() # is it worth dropping duplicates?
-  } else {
-    inat <- inat |> rename(h3id = h4)
-  }
-
-  print("POSITION 2")
-
-  print(inat)
-  print(poly_hexed)
-
+  message("counting species richness by polygon")
   inat <- inat |>
-    dplyr::inner_join(poly_hexed) |>
     dplyr::count(.data[[id_column]]) |>
     dplyr::mutate(logn = log(n), value = logn / max(logn))
 

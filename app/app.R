@@ -329,7 +329,7 @@ server <- function(input, output, session) {
     poly <- get_active_feature(active_feature(), input)
 
     if (input$show_hexes) {
-      gdf <- get_inat(
+      gdf <- get_inat_hexes(
         poly = poly,
         zoom = as.integer(input$resolution)
       )
@@ -345,7 +345,7 @@ server <- function(input, output, session) {
 
     print(gdf)
     maplibre_proxy("map") |>
-      set_source("carbon", gdf)
+      set_source("richness", gdf)
   })
 
   # Layer selection tools

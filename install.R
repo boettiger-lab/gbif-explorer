@@ -1,0 +1,23 @@
+install.packages(
+  c(
+    "bench",
+    "bsicons",
+    "bslib",
+    "colourpicker",
+    "conflicted",
+    "duckdbfs",
+    "ellmer",
+    "fontawesome",
+    "gt",
+    "mapgl",
+    "markdown",
+    "memoise",
+    "sf",
+    "shiny",
+    "shinybusy",
+    "shinychat",
+    "tidyverse"
+  )
+)
+
+remotes::install_github("cboettig/duckdbfs")
