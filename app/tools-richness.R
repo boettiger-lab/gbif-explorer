@@ -127,16 +127,14 @@ get_zonal_richness_ <- function(
 
   if (!is_cached(cache)) {
     # zoom is already determined by poly_hexed
-    hexcols <- poly_hexed |> colnames()
-    index <- hexcols[2]
-    id_col <- hexcols[3]
+    index <- smallest_hex_col(poly_hexed)
 
     open_gbif_region(poly_hexed, server) |>
       filter_gbif_taxa(taxa_selections) |>
       dplyr::select(taxonkey, !!index) |>
       dplyr::inner_join(poly_hexed) |>
       dplyr::distinct() |>
-      dplyr::count(.data[[id_col]]) |>
+      dplyr::count(.data[[id_column]]) |>
       dplyr::mutate(logn = log(n), value = logn / max(logn)) |>
       duckdbfs::write_dataset(cache)
   }
@@ -160,8 +158,8 @@ get_richness_ <- function(poly, zoom, id_column, taxa_selections, server) {
   if (!is_cached(cache)) {
     print(paste("no cache at", cache, "computing..."))
     # zoom is already determined by poly_hexed
-    hexcols <- poly_hexed |> colnames()
-    index <- hexcols[2]
+    index <- smallest_hex_col(poly_hexed)
+    print(paste("index:", index))
 
     open_gbif_region(poly_hexed, server) |>
       filter_gbif_taxa(taxa_selections) |>

@@ -83,6 +83,8 @@ Smaller areas will be faster to compute!  Zoom in further to show richness with 
       # chat_ui("chat", placeholder = "hummingbirds"),
       actionLink("get_richness", "🐦 GBIF species richness"),
       actionLink("get_carbon", "🌱 vulnerable carbon"),
+      actionLink("get_inat", "🐞 iNat species richness"),
+      actionLink("clear_data", "🧹 clear"),
     ),
     card(
       card_header("Resolution"),
@@ -267,6 +269,14 @@ server <- function(input, output, session) {
       active_feature(lazy_gdf) # can a lazy feature be global var?
     }
   })
+  observeEvent(input$clear_data, {
+    # use a better NULL of actually empty data?  random site doesn't clear
+    null <- "https://minio.carlboettiger.info/public-data/cache/gbif-app/carbon/396f8483cde5c907a0c8ef1ae334e77a.geojson"
+    print(paste("clearing data layers", null))
+    maplibre_proxy("map") |>
+      set_source("richness", null) |>
+      set_source("carbon", null)
+  })
 
   observeEvent(input$get_richness, {
     poly <- get_active_feature(active_feature(), input)
@@ -287,11 +297,11 @@ server <- function(input, output, session) {
       )
     }
 
-    print(gdf)
     maplibre_proxy("map") |>
       set_source("richness", gdf)
   })
 
+  # Generalize this
   observeEvent(input$get_carbon, {
     poly <- get_active_feature(active_feature(), input)
 
@@ -303,12 +313,39 @@ server <- function(input, output, session) {
     } else {
       layer <- layer_config[[input$layer_selection]]$parent_layer
       child_poly <- child_polygons(poly, layer, layer_config)
-      gdf <- get_mean_carbon(child_poly, zoom = as.integer(input$resolution))
+      gdf <- get_mean_carbon(
+        child_poly,
+        zoom = as.integer(input$resolution),
+        taxa_selections = taxa_filter()
+      )
     }
 
     print(gdf)
     maplibre_proxy("map") |>
       set_source("carbon", gdf)
+  })
+
+  observeEvent(input$get_inat, {
+    poly <- get_active_feature(active_feature(), input)
+
+    if (input$show_hexes) {
+      gdf <- get_inat_hexes(
+        poly = poly,
+        zoom = as.integer(input$resolution)
+      )
+    } else {
+      layer <- layer_config[[input$layer_selection]]$parent_layer
+      child_poly <- child_polygons(poly, layer, layer_config)
+      gdf <- get_inat_zonal(
+        child_poly,
+        zoom = as.integer(input$resolution),
+        taxa_selections = taxa_filter()
+      )
+    }
+
+    print(gdf)
+    maplibre_proxy("map") |>
+      set_source("richness", gdf)
   })
 
   # Layer selection tools
