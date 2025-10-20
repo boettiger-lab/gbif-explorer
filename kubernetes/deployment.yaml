@@ -35,7 +35,7 @@ spec:
         - name: AWS_PUBLIC_ENDPOINT
           value: "s3-west.nrp-nautilus.io"
         - name: AWS_HTTPS
-          value: "false"
+          value: "TRUE"
         - name: AWS_VIRTUAL_HOSTING
           value: "FALSE"
         - name: NRP_API_KEY
