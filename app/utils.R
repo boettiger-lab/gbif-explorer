@@ -80,7 +80,24 @@ bot_response <- function(taxa_selected, zoom) {
 # use layer-config to compute child polygons (from geoparquet files)
 # given active duckdb connection to polygon subset, a layer, and layer config
 child_polygons <- function(poly, layer, layer_config) {
+  ## Only return children of a single-feature(??)
+  if (dplyr::pull(dplyr::count(head(poly)), "n") > 1) {
+    message("multiple polygons selected, not computing child polygons")
+    return(poly)
+  }
+
+  ## return poly if layer not in layer_config
+  if (!layer %in% names(layer_config)) {
+    return(poly)
+  }
+
   parent <- layer_config[[layer]]
+
+  # return poly if no next layer
+  if (is.null(parent$next_layer)) {
+    return(poly)
+  }
+
   children <- layer_config[[parent$next_layer]]
 
   filter_property <- poly |> pull(all_of(parent$filter_property))
@@ -92,6 +109,7 @@ child_polygons <- function(poly, layer, layer_config) {
   child_poly
 }
 
+# Revise. single interface for drawing, geocode, bbox, or clicked feature is confusing
 get_active_feature <- function(gdf, input) {
   if (is_empty(gdf)) {
     print("No feature selected, checking for drawing")

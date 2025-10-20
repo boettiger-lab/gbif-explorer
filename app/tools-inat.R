@@ -154,6 +154,27 @@ get_inat_zonal <- function(
 }
 
 # FIXME do the filter!
-filter_inat_taxa <- function(df, taxa_list) {
-  df
+filter_inat_taxa <- function(df, selections = list()) {
+  taxa <- open_dataset(
+    "s3://public-inat/taxonomy/taxa_and_common.parquet",
+    recursive = FALSE
+  )
+  ranks <- colnames(taxa)
+
+  # If no selections made, return original dataset
+  if (length(selections) == 0) {
+    return(df)
+  }
+
+  # Start with the original dataset
+
+  # Apply filters for each selected taxonomic rank
+  for (rank in names(selections)) {
+    if (rank %in% ranks) {
+      taxa <- taxa |>
+        dplyr::filter(.data[[rank]] == !!selections[[rank]])
+    }
+  }
+
+  taxa |> select(taxon_id = id) |> inner_join(df)
 }

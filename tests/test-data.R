@@ -26,30 +26,6 @@ poly2 <- layer_config$county$parquet |>
   child_polygons("county_layer", layer_config)
 
 
-zoom = 8L
-id_column = "id"
-taxa_selections = list()
-
-
-inat <- open_inat_area(
-  poly = poly2,
-  zoom = zoom,
-  id_column = id_column,
-  taxa_selections = taxa_selections
-)
-
-inat <- inat |>
-  dplyr::count(id) |>
-  dplyr::mutate(logn = log(n), value = logn / max(logn)) 
-  
-
-## this part should be separate? Or be included in cache logic.
-label <- "inat"
-hash <- digest::digest(list(inat, zoom, id_column, label))
-s3 <- glue::glue("s3://{bucket}/{label}/{hash}.geojson")
-duckdbfs::to_geojson(inat, s3, as_http = TRUE)
-
-
 poly |>
   get_zonal_richness(5L)
 

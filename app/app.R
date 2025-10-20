@@ -198,6 +198,10 @@ server <- function(input, output, session) {
     # Always add the selected layer
     proxy <- proxy |> config$add_layer()
 
+    if (input$layer_selection != "none") {
+      active_feature(open_dataset(config$parquet))
+    }
+
     # Handle filter logic
     if (config$clear_filter) {
       layer_filter(NULL)
@@ -315,14 +319,19 @@ server <- function(input, output, session) {
       child_poly <- child_polygons(poly, layer, layer_config)
       gdf <- get_mean_carbon(
         child_poly,
-        zoom = as.integer(input$resolution),
-        taxa_selections = taxa_filter()
+        zoom = as.integer(input$resolution)
       )
     }
 
     print(gdf)
     maplibre_proxy("map") |>
       set_source("carbon", gdf)
+
+    updateRadioButtons(
+      session,
+      "layer_selection",
+      selected = "none"
+    )
   })
 
   observeEvent(input$get_inat, {
