@@ -36,14 +36,9 @@ duckdb_config(threads = 100)
 ui <- page_sidebar(
   title = "Explore Global Biodiversity",
   includeMarkdown(
-    "Activate the area selector to select specific regions (countries, states, counties, etc) by clicking on the map.
-Then, enter the species or taxonomic group of interest into the biodiversity search bar.
+    "
 
-Smaller areas will be faster to compute!  Zoom in further to show richness with a finer resolution hex grid, but higher resolutions will be much slower and may crash.
-
-*Experimental*: use the draw tools to create any custom region.  Or simply zoom in to the desired region with scrolling and activate richness for the entire visible area.
-
-"
+    "
   ),
   shinybusy::add_busy_spinner("fading-circle"),
   sidebar = sidebar(
@@ -79,12 +74,19 @@ Smaller areas will be faster to compute!  Zoom in further to show richness with 
       )
     ),
     card(
-      card_header("Biodiversity"),
+      card_header("Map data"),
       # chat_ui("chat", placeholder = "hummingbirds"),
-      actionLink("get_richness", "🐦 GBIF species richness"),
+      actionLink("get_richness", "🐦 GBIF species"),
       actionLink("get_carbon", "🌱 vulnerable carbon"),
-      actionLink("get_inat", "🐞 iNat species richness"),
+      actionLink("get_inat", "🐞 iNat species"),
       actionLink("clear_data", "🧹 clear"),
+    ),
+    card(
+      card_header("Tables"),
+      # chat_ui("chat", placeholder = "hummingbirds"),
+      #actionLink("get_richness", "🐦 GBIF species richness"),
+      #actionLink("get_carbon", "🌱 vulnerable carbon"),
+      actionLink("get_inat_table", "🐞 iNat species richness"),
     ),
     card(
       card_header("Resolution"),
@@ -198,7 +200,7 @@ server <- function(input, output, session) {
     # Always add the selected layer
     proxy <- proxy |> config$add_layer()
 
-    if (input$layer_selection != "none") {
+    if (input$layer_selection == "country_layer") {
       active_feature(open_dataset(config$parquet))
     }
 
@@ -212,7 +214,7 @@ server <- function(input, output, session) {
       pad_gap12_filter <- list(
         "in",
         list("get", "GAP_Sts"),
-        list("literal", c("1", "2"))
+        list("literal", c("1", "2", "3"))
       )
 
       layer_filter(pad_gap12_filter)
@@ -303,6 +305,8 @@ server <- function(input, output, session) {
 
     maplibre_proxy("map") |>
       set_source("richness", gdf)
+
+    updateRadioButtons(session, "layer_selection", selected = "none")
   })
 
   # Generalize this
@@ -327,11 +331,18 @@ server <- function(input, output, session) {
     maplibre_proxy("map") |>
       set_source("carbon", gdf)
 
-    updateRadioButtons(
-      session,
-      "layer_selection",
-      selected = "none"
+    updateRadioButtons(session, "layer_selection", selected = "none")
+  })
+  observeEvent(input$get_inat_table, {
+    poly <- get_active_feature(active_feature(), input)
+    print("getting inat table")
+    inat <- get_inat_table(
+      poly,
+      zoom = as.integer(input$resolution),
+      taxa_selections = taxa_filter()
     )
+
+    inat |> head(100) |> print()
   })
 
   observeEvent(input$get_inat, {
@@ -340,7 +351,8 @@ server <- function(input, output, session) {
     if (input$show_hexes) {
       gdf <- get_inat_hexes(
         poly = poly,
-        zoom = as.integer(input$resolution)
+        zoom = as.integer(input$resolution),
+        taxa_selections = taxa_filter()
       )
     } else {
       layer <- layer_config[[input$layer_selection]]$parent_layer
@@ -355,6 +367,8 @@ server <- function(input, output, session) {
     print(gdf)
     maplibre_proxy("map") |>
       set_source("richness", gdf)
+
+    # updateRadioButtons(session, "layer_selection", selected = "none")
   })
 
   # Layer selection tools

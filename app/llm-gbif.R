@@ -10,7 +10,7 @@ library(memoise)
 # Create chat session and register the tool
 llm_model <- ellmer::chat_openai(
   model = "qwen3", # qwen3 fastest?
-  base_url = "https://llm.nrp-nautilus.io",
+  base_url = "https://ellm.nrp-nautilus.io",
   api_key = Sys.getenv("NRP_API_KEY")
 )
 # Create chat session and register the tool
@@ -113,9 +113,10 @@ llm_setup <- function(chat_session) {
 taxa_chat <- llm_setup(llm_model)
 
 txt_to_taxa_ <- function(
-    user_request,
-    chat_session = taxa_chat,
-    thinking = FALSE) {
+  user_request,
+  chat_session = taxa_chat,
+  thinking = FALSE
+) {
   answer <- known_queries(user_request)
   if (answer$known) {
     return(answer$classification)
