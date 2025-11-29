@@ -1,4 +1,6 @@
-open_gbif_partition <- function(subset, server) {
+source("utils.R")
+
+open_gbif_partition <- function(subset, server, protocol = http_protocol()) {
   if (length(subset) < 1) {
     return(duckdbfs::open_dataset(
       glue::glue("s3://public-gbif/hex/"),
@@ -7,7 +9,7 @@ open_gbif_partition <- function(subset, server) {
   }
 
   urls <- paste0(
-    glue::glue("https://{server}/public-gbif/hex/h0="),
+    glue::glue("{protocol}://{server}/public-gbif/hex/h0="),
     subset,
     "/part0.parquet"
   )
@@ -15,11 +17,11 @@ open_gbif_partition <- function(subset, server) {
 }
 
 
-open_gbif_region <- function(poly_hexed, server) {
+open_gbif_region <- function(poly_hexed, server, protocol = http_protocol()) {
   subset <- poly_hexed |>
     dplyr::distinct(h0) |>
     dplyr::pull()
-  gbif <- open_gbif_partition(subset, server)
+  gbif <- open_gbif_partition(subset, server, protocol)
 
   return(gbif)
 }
@@ -52,12 +54,13 @@ richness_table <- function(
   zoom,
   id_column = "id",
   taxa_selections = list(),
-  server = Sys.getenv("AWS_S3_ENDPOINT", "minio.carlboettiger.info")
+  server = Sys.getenv("AWS_S3_ENDPOINT", "minio.carlboettiger.info"),
+  protocol = http_protocol()
 ) {
   poly_hexed_url <- get_h3_aoi(poly, precision = zoom, keep_cols = id_column)
   poly_hexed <- duckdbfs::open_dataset(poly_hexed_url, recursive = FALSE)
 
-  open_gbif_region(poly_hexed, server) |>
+  open_gbif_region(poly_hexed, server, protocol) |>
     filter_gbif_taxa(taxa_selections) |>
     select(
       kingdom,
@@ -85,6 +88,7 @@ get_zonal_richness <- function(
   id_column = "id",
   taxa_selections = list(),
   server = Sys.getenv("AWS_S3_ENDPOINT", "minio.carlboettiger.info"),
+  protocol = http_protocol(),
   bucket = "public-data/cache/gbif-app"
 ) {
   gbif_stats <- get_zonal_richness_(
@@ -92,7 +96,8 @@ get_zonal_richness <- function(
     zoom,
     id_column,
     taxa_selections,
-    server
+    server,
+    protocol
   )
 
   # join on id_column to poly
@@ -113,7 +118,8 @@ get_zonal_richness_ <- function(
   zoom,
   id_column = "id",
   taxa_selections = list(),
-  server
+  server,
+  protocol
 ) {
   poly_hexed_url <- get_h3_aoi(poly, precision = zoom, keep_cols = id_column)
   poly_hexed <- duckdbfs::open_dataset(poly_hexed_url, recursive = FALSE)
@@ -129,7 +135,7 @@ get_zonal_richness_ <- function(
     # zoom is already determined by poly_hexed
     index <- smallest_hex_col(poly_hexed)
 
-    open_gbif_region(poly_hexed, server) |>
+    open_gbif_region(poly_hexed, server, protocol) |>
       filter_gbif_taxa(taxa_selections) |>
       dplyr::select(taxonkey, !!index) |>
       dplyr::inner_join(poly_hexed) |>
@@ -144,7 +150,14 @@ get_zonal_richness_ <- function(
 
 
 # Hex-based calculation of species richness
-get_richness_ <- function(poly, zoom, id_column, taxa_selections, server) {
+get_richness_ <- function(
+  poly,
+  zoom,
+  id_column,
+  taxa_selections,
+  server,
+  protocol
+) {
   poly_hexed_url <- get_h3_aoi(poly, precision = zoom, keep_cols = id_column)
   poly_hexed <- duckdbfs::open_dataset(poly_hexed_url, recursive = FALSE)
 
@@ -161,7 +174,7 @@ get_richness_ <- function(poly, zoom, id_column, taxa_selections, server) {
     index <- smallest_hex_col(poly_hexed)
     print(paste("index:", index))
 
-    open_gbif_region(poly_hexed, server) |>
+    open_gbif_region(poly_hexed, server, protocol) |>
       filter_gbif_taxa(taxa_selections) |>
       dplyr::select(taxonkey, !!index) |>
       dplyr::inner_join(poly_hexed) |>
@@ -188,6 +201,7 @@ get_richness <- function(
   warning = TRUE,
   verbose = TRUE,
   server = Sys.getenv("AWS_S3_ENDPOINT"),
+  protocol = http_protocol(),
   bucket = "public-data/cache/gbif-app"
 ) {
   if (verbose) {
@@ -207,7 +221,8 @@ get_richness <- function(
     zoom = zoom,
     id_column = id_column,
     taxa_selections = taxa_selections,
-    server = server
+    server = server,
+    protocol = protocol
   )
 
   label <- "richness"

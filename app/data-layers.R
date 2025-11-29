@@ -3,6 +3,7 @@
 
 library(glue)
 library(mapgl)
+source("utils.R")
 
 library(conflicted)
 conflicted::conflicts_prefer(mapgl::interpolate, .quiet = TRUE)
@@ -10,9 +11,9 @@ conflicted::conflicts_prefer(dplyr::filter, .quiet = TRUE)
 
 f <- glue::glue
 server <- Sys.getenv("AWS_S3_ENDPOINT")
+protocol <- http_protocol()
 
-
-countries <- f("https://{server}/public-overturemaps/countries.pmtiles")
+countries <- f("{protocol}://{server}/public-overturemaps/countries.pmtiles")
 # Look up layer name of PMTiles file so we don't have to manually enter
 # countries_layer_name <- sf::st_layers(paste0("/vsicurl/", countries))$name[1]
 
@@ -37,7 +38,7 @@ add_countries <- function(map, ...) {
     )
 }
 
-regions <- f("https://{server}/public-overturemaps/regions.pmtiles")
+regions <- f("{protocol}://{server}/public-overturemaps/regions.pmtiles")
 add_regions <- function(map, ...) {
   map |>
     mapgl::add_fill_layer(
@@ -56,7 +57,7 @@ add_regions <- function(map, ...) {
     )
 }
 
-counties <- f("https://{server}/public-overturemaps/counties.pmtiles")
+counties <- f("{protocol}://{server}/public-overturemaps/counties.pmtiles")
 add_counties <- function(map) {
   map |>
     mapgl::add_fill_layer(
@@ -75,7 +76,9 @@ add_counties <- function(map) {
 }
 
 # US tracts only.  Maybe use locality from Overture World data
-tract <- "https://minio.carlboettiger.info/public-social-vulnerability/2022/SVI2022_US_tract.pmtiles"
+tract <- f(
+  "{protocol}://{server}/public-social-vulnerability/2022/SVI2022_US_tract.pmtiles"
+)
 # suppressWarnings({
 # Guess layer name of PMTiles file so we don't have to manually enter
 #  tract_layer_name <- sf::st_layers(paste0("/vsicurl/", tract))$name[1]
@@ -105,7 +108,9 @@ add_tracts <- function(map) {
 
 # Guess layer name of PMTiles file so we don't have to manually enter
 
-pad_us_4 <- "https://minio.carlboettiger.info/public-biodiversity/pad-us-4/pad-us-4.pmtiles"
+pad_us_4 <- f(
+  "{protocol}://{server}/public-biodiversity/pad-us-4/pad-us-4.pmtiles"
+)
 # layer_name <- sf::st_layers(paste0("/vsicurl/", pad_us_4))$name[1]
 manager_fill_color = mapgl::match_expr(
   column = "Mang_Type",
@@ -174,7 +179,7 @@ add_pad <- function(map, ...) {
 # layer will start blank if gdf=server
 richness_layer <- function(
   map,
-  gdf = "https://minio.carlboettiger.info",
+  gdf = f("{protocol}://{server}"),
   n_stops = 7
 ) {
   map |>
@@ -195,7 +200,7 @@ richness_layer <- function(
 
 carbon_layer <- function(
   map,
-  gdf = "https://minio.carlboettiger.info",
+  gdf = f("{protocol}://{server}"),
   n_stops = 7
 ) {
   map |>
@@ -296,7 +301,7 @@ layer_config <- list(
     filter_column = "country", # column in next layer
     filter_property = "country", # column from which we extract current feature filter
     parquet = f(
-      "https://{server}/public-overturemaps/countries.parquet"
+      "{protocol}://{server}/public-overturemaps/countries.parquet"
     )
   ),
   region_layer = list(
@@ -309,7 +314,7 @@ layer_config <- list(
     filter_column = "region",
     filter_property = "region",
     parquet = f(
-      "https://{server}/public-overturemaps/regions.parquet"
+      "{protocol}://{server}/public-overturemaps/regions.parquet"
     )
   ),
   county_layer = list(
@@ -322,7 +327,7 @@ layer_config <- list(
     filter_column = "COUNTY", # column in next layer (US tracts only)
     filter_property = "primary",
     parquet = f(
-      "https://{server}/public-overturemaps/counties.parquet"
+      "{protocol}://{server}/public-overturemaps/counties.parquet"
     )
   ),
   tract_layer = list(
@@ -333,7 +338,7 @@ layer_config <- list(
     clear_filter = FALSE,
     name_property = "FIPS",
     parquet = f(
-      "https://{server}/public-social-vulnerability/2022/svi_tract.parquet"
+      "{protocol}://{server}/public-social-vulnerability/2022/svi_tract.parquet"
     )
   ),
 
@@ -347,7 +352,7 @@ layer_config <- list(
     filter_property = "row_n",
     id_property = "row_n",
     parquet = f(
-      "https://{server}/public-biodiversity/pad-us-4/pad-us-4.parquet"
+      "{protocol}://{server}/public-biodiversity/pad-us-4/pad-us-4.parquet"
     )
   ),
 

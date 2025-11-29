@@ -3,8 +3,12 @@
 
 # Would be great to filter by incomes > x percentile and then compute data
 
+source("app/utils.R")
+protocol <- http_protocol()
+server <- Sys.getenv("AWS_S3_ENDPOINT")
+
 # US Counties only.
-counties <- "https://minio.carlboettiger.info/public-social-vulnerability/2022/SVI2022_US_county.pmtiles"
+counties <- glue::glue("{protocol}://{server}/public-social-vulnerability/2022/SVI2022_US_county.pmtiles")
 suppressWarnings({
   # Guess layer name of PMTiles file so we don't have to manually enter
   counties_layer_name <- sf::st_layers(paste0("/vsicurl/", counties))$name[1]
@@ -29,7 +33,7 @@ add_counties <- function(map) {
 }
 
 # US tracts only.  Maybe use locality from Overture World data
-tract <- "https://minio.carlboettiger.info/public-social-vulnerability/2022/SVI2022_US_tract.pmtiles"
+tract <- glue::glue("{protocol}://{server}/public-social-vulnerability/2022/SVI2022_US_tract.pmtiles")
 suppressWarnings({
   # Guess layer name of PMTiles file so we don't have to manually enter
   tract_layer_name <- sf::st_layers(paste0("/vsicurl/", tract))$name[1]

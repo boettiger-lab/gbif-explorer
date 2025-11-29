@@ -1,6 +1,9 @@
+source("utils.R")
+
 open_carbon_partition <- function(
   subset,
-  server = Sys.getenv("AWS_S3_ENDPOINT", "minio.carlboettiger.info")
+  server = Sys.getenv("AWS_S3_ENDPOINT", "minio.carlboettiger.info"),
+  protocol = http_protocol()
 ) {
   # Fallback case, opens all partitions
   if (length(subset) < 1) {
@@ -11,7 +14,7 @@ open_carbon_partition <- function(
   }
   # open directly as one or more URLs
   urls <- paste0(
-    glue("https://{server}/public-carbon/hex/vulnerable-carbon/h0="),
+    glue("{protocol}://{server}/public-carbon/hex/vulnerable-carbon/h0="),
     tolower(subset),
     "/data_0.parquet"
   )
@@ -21,7 +24,8 @@ open_carbon_partition <- function(
 
 open_carbon_region <- function(
   poly_hexed,
-  server = Sys.getenv("AWS_S3_ENDPOINT", "minio.carlboettiger.info")
+  server = Sys.getenv("AWS_S3_ENDPOINT", "minio.carlboettiger.info"),
+  protocol = http_protocol()
 ) {
   subset <- poly_hexed |>
     dplyr::distinct(h0) |>
@@ -30,7 +34,7 @@ open_carbon_region <- function(
   hexcols <- poly_hexed |> colnames()
   index <- hexcols[2]
 
-  open_carbon_partition(subset, server) |>
+  open_carbon_partition(subset, server, protocol) |>
     dplyr::select(-h0) |>
     dplyr::mutate(!!index := toupper(!!sym(index))) |>
     dplyr::inner_join(poly_hexed) |>
@@ -44,6 +48,7 @@ get_carbon <- function(
   warning = TRUE,
   verbose = TRUE,
   server = Sys.getenv("AWS_S3_ENDPOINT", "minio.carlboettiger.info"),
+  protocol = http_protocol(),
   bucket = "public-data/cache/gbif-app"
 ) {
   duckdbfs::load_h3()
@@ -53,7 +58,7 @@ get_carbon <- function(
   poly_hexed <- duckdbfs::open_dataset(poly_hexed_url, recursive = FALSE)
 
   ## This operation is maybe always fast enough not to cache?
-  carbon <- open_carbon_region(poly_hexed, server) |>
+  carbon <- open_carbon_region(poly_hexed, server, protocol) |>
     dplyr::group_by(h3id) |>
     dplyr::summarise(carbon = mean(carbon)) |>
     dplyr::mutate(value = carbon / max(carbon)) # normalize for color scale
@@ -76,6 +81,7 @@ get_mean_carbon <- function(
   warning = TRUE,
   verbose = TRUE,
   server = Sys.getenv("AWS_S3_ENDPOINT", "minio.carlboettiger.info"),
+  protocol = http_protocol(),
   bucket = "public-data/cache/gbif-app"
 ) {
   # get_h3_aoi is self-caching, shared across metrics
@@ -83,7 +89,7 @@ get_mean_carbon <- function(
   poly_hexed <- duckdbfs::open_dataset(poly_hexed_url, recursive = FALSE)
 
   ## This operation is maybe always fast enough not to cache?
-  carbon <- open_carbon_region(poly_hexed, server) |>
+  carbon <- open_carbon_region(poly_hexed, server, protocol) |>
     dplyr::group_by(.data[[id_column]]) |>
     dplyr::summarise(carbon = mean(carbon)) |>
     dplyr::mutate(value = carbon / max(carbon)) # normalize for color scale

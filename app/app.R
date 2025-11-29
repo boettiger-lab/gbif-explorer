@@ -28,6 +28,7 @@ source("utils.R")
 source("llm-gbif.R")
 source("tools.R")
 source("taxa-filter.R")
+protocol <- http_protocol()
 
 
 MAXZOOM <- 10

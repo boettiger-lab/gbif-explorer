@@ -135,3 +135,11 @@ get_active_feature <- function(gdf, input) {
 
   gdf
 }
+
+http_protocol <- function() {
+  http_only <- as.logical(Sys.getenv("AWS_HTTPS", ""))
+  if (http_only) {
+    return("http")
+  }
+  "https"
+}

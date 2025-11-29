@@ -1,4 +1,6 @@
-open_inat_partition <- function(subset, server) {
+source("utils.R")
+
+open_inat_partition <- function(subset, server, protocol = http_protocol()) {
   if (length(subset) < 1) {
     return(duckdbfs::open_dataset(
       glue::glue("s3://public-inat/range-maps/hex/"),
@@ -17,12 +19,12 @@ open_inat_partition <- function(subset, server) {
 
 
 # open only the partitioned tiles, and then filter down to the polygon
-open_inat_region <- function(poly_hexed, server) {
+open_inat_region <- function(poly_hexed, server, protocol = http_protocol()) {
   poly_hexed |>
     dplyr::distinct(h0) |>
     dplyr::pull() |>
     tolower() |>
-    open_inat_partition(server)
+    open_inat_partition(server, protocol)
 }
 
 
@@ -65,7 +67,8 @@ open_inat_area <- function(
   zoom = 4L,
   id_column = "id",
   taxa_selections = list(),
-  server = Sys.getenv("AWS_S3_ENDPOINT", "minio.carlboettiger.info")
+  server = Sys.getenv("AWS_S3_ENDPOINT", "minio.carlboettiger.info"),
+  protocol = http_protocol()
 ) {
   duckdbfs::load_h3()
 
@@ -78,7 +81,7 @@ open_inat_area <- function(
   )
   poly_hexed <- duckdbfs::open_dataset(poly_hexed_url, recursive = FALSE)
 
-  inat <- open_inat_region(poly_hexed, server) |>
+  inat <- open_inat_region(poly_hexed, server, protocol) |>
     hex_join(poly_hexed) |>
     filter_inat_taxa(taxa_selections)
 
@@ -92,6 +95,7 @@ get_inat_hexes <- function(
   id_column = "id",
   taxa_selections = list(),
   server = Sys.getenv("AWS_S3_ENDPOINT", "minio.carlboettiger.info"),
+  protocol = http_protocol(),
   bucket = "public-data/cache/gbif-app"
 ) {
   label <- "inat-hexes"
@@ -122,7 +126,7 @@ get_inat_hexes <- function(
     duckdbfs::to_geojson(inat, s3, as_http = TRUE)
   }
 
-  url <- gsub("^s3://", glue::glue("https://{server}/"), s3)
+  url <- gsub("^s3://", glue::glue("{protocol}://{server}/"), s3)
   print(url)
 
   url
@@ -160,6 +164,7 @@ get_inat_zonal <- function(
   id_column = "id",
   taxa_selections = list(),
   server = Sys.getenv("AWS_S3_ENDPOINT", "minio.carlboettiger.info"),
+  protocol = http_protocol(),
   bucket = "public-data/cache/gbif-app"
 ) {
   label <- "inat"
@@ -193,7 +198,7 @@ get_inat_zonal <- function(
     duckdbfs::to_geojson(poly, s3, as_http = TRUE)
   }
 
-  gsub("^s3://", glue::glue("https://{server}/"), s3)
+  gsub("^s3://", glue::glue("{protocol}://{server}/"), s3)
 }
 
 # FIXME do the filter!

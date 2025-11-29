@@ -5,6 +5,9 @@ library(stringr)
 library(duckdbfs)
 library(glue)
 
+source("utils.R")
+protocol <- http_protocol()
+
 taxonomic_ranks <- c(
   "kingdom",
   "phylum",
@@ -15,7 +18,7 @@ taxonomic_ranks <- c(
   "species"
 )
 server <- Sys.getenv("AWS_PUBLIC_ENDPOINT", Sys.getenv("AWS_S3_ENDPOINT"))
-taxa <- open_dataset(glue("https://{server}/public-gbif/taxa.parquet"))
+taxa <- open_dataset(glue("{protocol}://{server}/public-gbif/taxa.parquet"))
 # Core utility function for getting child taxa
 child_taxa <- function(parent_rank = "kingdom", parent_name = "Animalia") {
   # Load GBIF taxa dataset

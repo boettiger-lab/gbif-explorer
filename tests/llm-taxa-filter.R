@@ -6,9 +6,12 @@ library(dplyr)
 library(glue)
 library(stringr)
 
+source("app/utils.R")
+protocol <- http_protocol()
+
 # Load GBIF taxa dataset
 server <- Sys.getenv("AWS_PUBLIC_ENDPOINT", Sys.getenv("AWS_S3_ENDPOINT"))
-taxa <- open_dataset(glue("https://{server}/public-gbif/taxa.parquet"))
+taxa <- open_dataset(glue("{protocol}://{server}/public-gbif/taxa.parquet"))
 
 # Define taxonomic hierarchy
 taxonomic_ranks <- c(

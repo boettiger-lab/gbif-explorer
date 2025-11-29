@@ -3,6 +3,9 @@ library(dplyr)
 library(duckdbfs)
 duckdbfs::duckdb_secrets()
 
+source("app/utils.R")
+protocol <- http_protocol()
+
 ## Make anonymous AWS S3 default endpoint for "overturemaps-us-west-2"
 duckdbfs::duckdb_secrets(
   key = "",
@@ -73,7 +76,7 @@ processx::run(
 
 duckdb_secrets()
 server <- "minio.carlboettiger.info"
-svi_tracts <- glue::glue("https://{server}/public-social-vulnerability/2022/SVI2022_US_tract.parquet")
+svi_tracts <- glue::glue("{protocol}://{server}/public-social-vulnerability/2022/SVI2022_US_tract.parquet")
 duckdbfs::open_dataset(svi_tracts) |>
   rename(geometry = Shape) |>
   mutate(id = FIPS) |>
@@ -124,7 +127,7 @@ overture_pmtiles_is_messed_up <- function() {
     )
 }
 
+server <- Sys.getenv("AWS_S3_ENDPOINT", "minio.carlboettiger.info")
 
-
-df <- open_dataset("https://minio.carlboettiger.info/public-biodiversity/pad-us-4/pad-us-4.parquet")
+df <- open_dataset(glue::glue("{protocol}://{server}/public-biodiversity/pad-us-4/pad-us-4.parquet"))
 df

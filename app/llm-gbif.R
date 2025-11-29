@@ -3,6 +3,9 @@ library(duckdbfs)
 library(glue)
 library(memoise)
 
+source("utils.R")
+protocol <- http_protocol()
+
 # Function that returns the LLM's reasoning process
 
 # NOTE -- currently does not remember chat context! be sure to
@@ -64,7 +67,7 @@ guess_server <- function() {
 gbif_taxonomy <- function(rank = "class", name = "Aves") {
   server <- guess_server()
   taxa <- duckdbfs::open_dataset(glue::glue(
-    "https://{server}/public-gbif/taxa.parquet"
+    "{protocol}://{server}/public-gbif/taxa.parquet"
   ))
   taxonomic_ranks <- c(
     "kingdom",
