@@ -70,7 +70,12 @@ get_carbon <- function(
   label <- "carbon"
   hash <- digest::digest(list(carbon, zoom, id_column, label))
   s3 <- glue::glue("s3://{bucket}/{label}/{hash}.geojson")
-  duckdbfs::to_geojson(carbon, s3, as_http = TRUE)
+
+  server <- Sys.getenv(
+    "AWS_PULBIC_ENDPOINT",
+    Sys.getenv("AWS_S3_ENDPOINT", "s3.amazonaws.com")
+  )
+  duckdbfs::to_geojson(carbon, s3, as_http = TRUE, server = server)
 }
 
 
@@ -102,5 +107,10 @@ get_mean_carbon <- function(
   label <- "carbon"
   hash <- digest::digest(list(gdf, zoom, id_column, label))
   s3 <- glue::glue("s3://{bucket}/{label}/{hash}.geojson")
-  duckdbfs::to_geojson(gdf, s3, as_http = TRUE)
+
+  server <- Sys.getenv(
+    "AWS_PULBIC_ENDPOINT",
+    Sys.getenv("AWS_S3_ENDPOINT", "s3.amazonaws.com")
+  )
+  duckdbfs::to_geojson(gdf, s3, as_http = TRUE, server = server)
 }

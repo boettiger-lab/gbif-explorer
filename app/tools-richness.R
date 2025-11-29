@@ -109,7 +109,12 @@ get_zonal_richness <- function(
   label <- "richness"
   hash <- digest::digest(list(poly, zoom, id_column, label))
   s3 <- glue::glue("s3://{bucket}/{label}/{hash}.geojson")
-  duckdbfs::to_geojson(poly, s3, as_http = TRUE)
+
+  server <- Sys.getenv(
+    "AWS_PULBIC_ENDPOINT",
+    Sys.getenv("AWS_S3_ENDPOINT", "s3.amazonaws.com")
+  )
+  duckdbfs::to_geojson(poly, s3, as_http = TRUE, server = server)
 }
 
 ## TOTAL Richness of polygon, not richness density.
@@ -228,5 +233,10 @@ get_richness <- function(
   label <- "richness"
   hash <- digest::digest(list(gbif, zoom, id_column, label))
   s3 <- glue::glue("s3://{bucket}/{label}/{hash}.geojson")
-  duckdbfs::to_geojson(gbif, s3, as_http = TRUE)
+
+  server <- Sys.getenv(
+    "AWS_PULBIC_ENDPOINT",
+    Sys.getenv("AWS_S3_ENDPOINT", "s3.amazonaws.com")
+  )
+  duckdbfs::to_geojson(gbif, s3, as_http = TRUE, server = server)
 }
