@@ -13,7 +13,9 @@ f <- glue::glue
 server <- Sys.getenv("AWS_S3_ENDPOINT")
 protocol <- http_protocol()
 
-countries <- f("{protocol}://{server}/public-overturemaps/countries.pmtiles")
+countries <- f(
+  "https://minio.carlboettiger.info/public-overturemaps/countries.pmtiles"
+)
 # Look up layer name of PMTiles file so we don't have to manually enter
 # countries_layer_name <- sf::st_layers(paste0("/vsicurl/", countries))$name[1]
 
@@ -38,7 +40,9 @@ add_countries <- function(map, ...) {
     )
 }
 
-regions <- f("{protocol}://{server}/public-overturemaps/regions.pmtiles")
+regions <- f(
+  "https://minio.carlboettiger.info/public-overturemaps/regions.pmtiles"
+)
 add_regions <- function(map, ...) {
   map |>
     mapgl::add_fill_layer(
@@ -57,7 +61,9 @@ add_regions <- function(map, ...) {
     )
 }
 
-counties <- f("{protocol}://{server}/public-overturemaps/counties.pmtiles")
+counties <- f(
+  "https://minio.carlboettiger.info/public-overturemaps/counties.pmtiles"
+)
 add_counties <- function(map) {
   map |>
     mapgl::add_fill_layer(
@@ -77,7 +83,7 @@ add_counties <- function(map) {
 
 # US tracts only.  Maybe use locality from Overture World data
 tract <- f(
-  "{protocol}://{server}/public-social-vulnerability/2022/SVI2022_US_tract.pmtiles"
+  "https://minio.carlboettiger.info/public-social-vulnerability/2022/SVI2022_US_tract.pmtiles"
 )
 # suppressWarnings({
 # Guess layer name of PMTiles file so we don't have to manually enter
@@ -109,7 +115,7 @@ add_tracts <- function(map) {
 # Guess layer name of PMTiles file so we don't have to manually enter
 
 pad_us_4 <- f(
-  "{protocol}://{server}/public-biodiversity/pad-us-4/pad-us-4.pmtiles"
+  "https://minio.carlboettiger.info/public-biodiversity/pad-us-4/pad-us-4.pmtiles"
 )
 # layer_name <- sf::st_layers(paste0("/vsicurl/", pad_us_4))$name[1]
 manager_fill_color = mapgl::match_expr(
