@@ -76,7 +76,9 @@ processx::run(
 
 duckdb_secrets()
 server <- "minio.carlboettiger.info"
-svi_tracts <- glue::glue("{protocol}://{server}/public-social-vulnerability/2022/SVI2022_US_tract.parquet")
+svi_tracts <- glue::glue(
+  "{protocol}://{server}/public-social-vulnerability/2022/SVI2022_US_tract.parquet"
+)
 duckdbfs::open_dataset(svi_tracts) |>
   rename(geometry = Shape) |>
   mutate(id = FIPS) |>
@@ -129,5 +131,7 @@ overture_pmtiles_is_messed_up <- function() {
 
 server <- Sys.getenv("AWS_S3_ENDPOINT", "minio.carlboettiger.info")
 
-df <- open_dataset(glue::glue("{protocol}://{server}/public-biodiversity/pad-us-4/pad-us-4.parquet"))
+df <- open_dataset(glue::glue(
+  "{protocol}://{server}/public-biodiversity/pad-us-4/pad-us-4.parquet"
+))
 df

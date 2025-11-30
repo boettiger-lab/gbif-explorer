@@ -114,7 +114,13 @@ get_zonal_richness <- function(
     "AWS_PUBLIC_ENDPOINT",
     Sys.getenv("AWS_S3_ENDPOINT", "s3.amazonaws.com")
   )
-  duckdbfs::to_geojson(poly, s3, as_http = TRUE, server = server)
+  duckdbfs::to_geojson(
+    poly,
+    s3,
+    as_http = TRUE,
+    server = server,
+    use_ssl = TRUE
+  )
 }
 
 ## TOTAL Richness of polygon, not richness density.
@@ -238,5 +244,11 @@ get_richness <- function(
     "AWS_PUBLIC_ENDPOINT",
     Sys.getenv("AWS_S3_ENDPOINT", "s3.amazonaws.com")
   )
-  duckdbfs::to_geojson(gbif, s3, as_http = TRUE, server = server)
+  duckdbfs::to_geojson(
+    gbif,
+    s3,
+    as_http = TRUE,
+    server = server,
+    use_ssl = TRUE
+  )
 }

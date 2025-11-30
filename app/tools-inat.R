@@ -126,7 +126,13 @@ get_inat_hexes <- function(
       "AWS_PUBLIC_ENDPOINT",
       Sys.getenv("AWS_S3_ENDPOINT", "s3.amazonaws.com")
     )
-    duckdbfs::to_geojson(inat, s3, as_http = TRUE, server = server)
+    duckdbfs::to_geojson(
+      inat,
+      s3,
+      as_http = TRUE,
+      server = server,
+      use_ssl = TRUE
+    )
   }
 
   url <- gsub("^s3://", glue::glue("{protocol}://{server}/"), s3)
@@ -202,7 +208,13 @@ get_inat_zonal <- function(
       Sys.getenv("AWS_S3_ENDPOINT", "s3.amazonaws.com")
     )
     print(public_server)
-    duckdbfs::to_geojson(poly, s3, as_http = TRUE, server = public_server)
+    duckdbfs::to_geojson(
+      poly,
+      s3,
+      as_http = TRUE,
+      server = public_server,
+      use_ssl = TRUE
+    )
   }
 
   gsub("^s3://", glue::glue("{protocol}://{server}/"), s3)

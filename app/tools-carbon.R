@@ -75,7 +75,13 @@ get_carbon <- function(
     "AWS_PUBLIC_ENDPOINT",
     Sys.getenv("AWS_S3_ENDPOINT", "s3.amazonaws.com")
   )
-  duckdbfs::to_geojson(carbon, s3, as_http = TRUE, server = server)
+  duckdbfs::to_geojson(
+    carbon,
+    s3,
+    as_http = TRUE,
+    server = server,
+    use_ssl = TRUE
+  )
 }
 
 
@@ -112,5 +118,5 @@ get_mean_carbon <- function(
     "AWS_PUBLIC_ENDPOINT",
     Sys.getenv("AWS_S3_ENDPOINT", "s3.amazonaws.com")
   )
-  duckdbfs::to_geojson(gdf, s3, as_http = TRUE, server = server)
+  duckdbfs::to_geojson(gdf, s3, as_http = TRUE, server = server, use_ssl = TRUE)
 }
