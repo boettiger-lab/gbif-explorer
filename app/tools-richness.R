@@ -111,7 +111,7 @@ get_zonal_richness <- function(
   s3 <- glue::glue("s3://{bucket}/{label}/{hash}.geojson")
 
   server <- Sys.getenv(
-    "AWS_PULBIC_ENDPOINT",
+    "AWS_PUBLIC_ENDPOINT",
     Sys.getenv("AWS_S3_ENDPOINT", "s3.amazonaws.com")
   )
   duckdbfs::to_geojson(poly, s3, as_http = TRUE, server = server)
@@ -235,7 +235,7 @@ get_richness <- function(
   s3 <- glue::glue("s3://{bucket}/{label}/{hash}.geojson")
 
   server <- Sys.getenv(
-    "AWS_PULBIC_ENDPOINT",
+    "AWS_PUBLIC_ENDPOINT",
     Sys.getenv("AWS_S3_ENDPOINT", "s3.amazonaws.com")
   )
   duckdbfs::to_geojson(gbif, s3, as_http = TRUE, server = server)

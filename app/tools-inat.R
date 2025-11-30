@@ -123,7 +123,7 @@ get_inat_hexes <- function(
 
     ## this part should be separate? Or be included in cache logic.
     server <- Sys.getenv(
-      "AWS_PULBIC_ENDPOINT",
+      "AWS_PUBLIC_ENDPOINT",
       Sys.getenv("AWS_S3_ENDPOINT", "s3.amazonaws.com")
     )
     duckdbfs::to_geojson(inat, s3, as_http = TRUE, server = server)
@@ -197,11 +197,12 @@ get_inat_zonal <- function(
       rename(geom = "geometry")
 
     ## this part should be separate? Or be included in cache logic.
-    server <- Sys.getenv(
-      "AWS_PULBIC_ENDPOINT",
+    public_server <- Sys.getenv(
+      "AWS_PUBLIC_ENDPOINT",
       Sys.getenv("AWS_S3_ENDPOINT", "s3.amazonaws.com")
     )
-    duckdbfs::to_geojson(poly, s3, as_http = TRUE, server = server)
+    print(public_server)
+    duckdbfs::to_geojson(poly, s3, as_http = TRUE, server = public_server)
   }
 
   gsub("^s3://", glue::glue("{protocol}://{server}/"), s3)
